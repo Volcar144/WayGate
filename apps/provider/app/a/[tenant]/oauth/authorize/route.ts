@@ -66,7 +66,7 @@ export async function GET(req: NextRequest) {
     codeChallengeMethod = (q.code_challenge_method as 'S256' | 'plain') ?? 'S256';
   }
 
-  const pending = createPendingAuthRequest({
+  const pending = await createPendingAuthRequest({
     tenantId: tenant.id,
     tenantSlug,
     clientDbId: client.id,

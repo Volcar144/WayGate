@@ -1,10 +1,12 @@
 import { env } from '@/env';
-import type IORedis from 'ioredis';
 
 // Provide a shared Redis utility with singleton connections
 // We lazy-require ioredis to avoid bundling issues if Redis is not used
 
-type RedisClient = IORedis.Redis;
+// Use a minimal 'any' type to avoid requiring ioredis types at build time
+// This keeps Redis optional for environments without it installed.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type RedisClient = any;
 
 const g = global as unknown as {
   __redis_primary?: RedisClient | null;
@@ -12,7 +14,7 @@ const g = global as unknown as {
 
 function buildRedis(): RedisClient {
   // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const Redis = require('ioredis') as typeof import('ioredis');
+  const Redis = require('ioredis');
   const client = new Redis({
     host: env.REDIS_HOST,
     port: env.REDIS_PORT || 6379,
@@ -56,7 +58,9 @@ export async function newRedisSubscriber(): Promise<RedisClient | null> {
     await client.connect?.();
     return client;
   } catch (e) {
-    try { await (client as any)?.quit?.(); } catch { /* ignore */ }
+    try { await (client as any)?.quit?.(); } catch {
+      // ignore
+    }
     return null;
   }
 }

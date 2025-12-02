@@ -35,6 +35,9 @@ jobs:
           node-version: 20
           cache: pnpm
 
+      - name: Lint (all workspaces)
+        run: pnpm -r run lint
+
       - name: Type check (all workspaces)
         run: pnpm -r exec tsc --noEmit
 

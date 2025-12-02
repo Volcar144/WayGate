@@ -1,6 +1,5 @@
 import { cookies } from 'next/headers';
 import { verifyAccessToken, verifyIdToken } from './waygate';
-import { env } from './env';
 
 export type SessionCookie = {
   id_token: string;
