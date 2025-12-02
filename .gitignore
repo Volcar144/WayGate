@@ -1,0 +1,31 @@
+# Node
+node_modules/
+.pnp.cjs
+.pnp.loader.mjs
+.pnpm-store/
+
+# Output
+.next/
+.turbo/
+dist/
+build/
+out/
+
+# Env
+.env
+.env.*.local
+.env.local
+
+# Prisma
+prisma/*.db
+prisma/migrations/*.lock
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
