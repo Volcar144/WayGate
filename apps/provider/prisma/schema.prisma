@@ -16,10 +16,14 @@ model Tenant {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  users   User[]
-  clients Client[]
-  keys    JwkKey[]
-  audits  Audit[]
+  users         User[]
+  clients       Client[]
+  keys          JwkKey[]
+  audits        Audit[]
+  authCodes     AuthCode[]
+  sessions      Session[]
+  refreshTokens RefreshToken[]
+  consents      Consent[]
 }
 
 model User {
@@ -35,6 +39,7 @@ model User {
   sessions    Session[]
   consents    Consent[]
   audits      Audit[]
+  authCodes   AuthCode[]
 
   @@unique([tenantId, email])
   @@index([tenantId])

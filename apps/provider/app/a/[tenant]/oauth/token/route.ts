@@ -25,7 +25,8 @@ function parseBasicAuth(header: string | null): { clientId: string | null; clien
     const id = decoded.slice(0, idx);
     const secret = decoded.slice(idx + 1);
     return { clientId: id, clientSecret: secret };
-  } catch {
+  } catch (e) {
+    console.error('Failed to parse basic auth header', e);
     return { clientId: null, clientSecret: null };
   }
 }
@@ -103,7 +104,9 @@ export async function POST(req: NextRequest) {
     if (!ok) return oidcError('invalid_grant', 'pkce_verification_failed');
 
     // Single-use: delete code
-    await (prisma as any).authCode.delete({ where: { code } }).catch(() => {});
+    await (prisma as any).authCode.delete({ where: { code } }).catch((e: any) => {
+      console.error('Failed to delete auth code', e);
+    });
     consumeAuthCodeMeta(code);
 
     // Create session and refresh token
@@ -135,7 +138,9 @@ export async function POST(req: NextRequest) {
     try {
       const { setRefreshMeta } = await import('@/services/authz');
       setRefreshMeta(refresh.token, scope);
-    } catch {}
+    } catch (e) {
+      console.error('Failed to persist refresh meta', e);
+    }
 
     await (prisma as any).audit.create({
       data: {
@@ -171,7 +176,9 @@ export async function POST(req: NextRequest) {
     if (rt.revoked) {
       // Reuse detected => revoke session
       await (prisma as any).refreshToken.updateMany({ where: { sessionId: rt.sessionId }, data: { revoked: true } });
-      await (prisma as any).session.update({ where: { id: rt.sessionId }, data: { expiresAt: new Date() } }).catch(() => {});
+      await (prisma as any).session.update({ where: { id: rt.sessionId }, data: { expiresAt: new Date() } }).catch((e: any) => {
+        console.error('Failed to expire session after reuse detection', e);
+      });
       await (prisma as any).audit.create({ data: { tenantId: tenant.id, userId: null, action: 'token.reuse_detected', ip: ip || null, userAgent: req.headers.get('user-agent') || null } });
       return oidcError('invalid_grant', 'refresh token reuse detected');
     }
@@ -206,7 +213,9 @@ export async function POST(req: NextRequest) {
       if (meta && meta.scope) scope = meta.scope;
       // Persist the same scope bound to the rotated refresh token
       setRefreshMeta(created.token, scope);
-    } catch {}
+    } catch (e) {
+      console.error('Failed to handle refresh meta', e);
+    }
     const at = await signAccessToken({ tenantId: tenant.id, sub: userId, clientId: client.clientId, scope });
     const idt = await signIdToken({ tenantId: tenant.id, sub: userId, clientId: client.clientId, authTime: Math.floor(new Date(session.createdAt).getTime() / 1000) });
 

@@ -1,53 +1,8 @@
-import { env } from '@/env';
+import { getRedis } from '@/lib/redis';
 
-// Simple Redis-like rate limiter with in-memory fallback. If REDIS_* envs are set,
-// this will attempt a best-effort connection using a dynamic import of 'ioredis'.
-// If the import fails or no config is provided, it falls back to a process-local map.
+// Simple Redis-backed rate limiter with in-memory fallback.
 
-type RedisLike = {
-  incr: (key: string) => Promise<number>;
-  pttl: (key: string) => Promise<number>;
-  expire: (key: string, seconds: number) => Promise<void>;
-};
-
-let redisClient: RedisLike | null = null;
 const memStore = new Map<string, { count: number; resetAt: number }>();
-
-async function getRedis(): Promise<RedisLike | null> {
-  if (redisClient !== null) return redisClient;
-  const host = env.REDIS_HOST;
-  const port = env.REDIS_PORT || 6379;
-  if (!host) {
-    redisClient = null;
-    return null;
-  }
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const IORedis = require('ioredis');
-    const client = new IORedis({
-      host,
-      port,
-      username: env.REDIS_USERNAME,
-      password: env.REDIS_PASSWORD,
-      lazyConnect: true,
-      maxRetriesPerRequest: 1,
-    });
-    try {
-      await client.connect?.();
-    } catch {}
-    redisClient = {
-      incr: async (key: string) => await client.incr(key),
-      pttl: async (key: string) => await client.pttl(key),
-      expire: async (key: string, seconds: number) => {
-        await client.expire(key, seconds);
-      },
-    } as RedisLike;
-    return redisClient;
-  } catch {
-    redisClient = null;
-    return null;
-  }
-}
 
 export async function rateLimitTake(key: string, limit: number, windowMs: number): Promise<{ allowed: boolean; remaining: number; reset: number }> {
   const redis = await getRedis();

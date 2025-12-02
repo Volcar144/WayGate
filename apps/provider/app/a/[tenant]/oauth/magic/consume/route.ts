@@ -19,10 +19,10 @@ export async function GET(req: NextRequest) {
   if (!tenantSlug) return html('<h1>Error</h1><p>missing tenant</p>', 400);
   const token = req.nextUrl.searchParams.get('token') || '';
 
-  const mt = consumeMagicToken(token);
+  const mt = await consumeMagicToken(token);
   if (!mt || mt.tenantSlug !== tenantSlug) return html('<h1>Invalid or expired link</h1>', 400);
 
-  const pending = getPending(mt.rid);
+  const pending = await getPending(mt.rid);
   if (!pending) return html('<h1>Your login session has expired. Please try again.</h1>', 400);
 
   const tenant = await findTenantBySlug(tenantSlug);
@@ -34,7 +34,7 @@ export async function GET(req: NextRequest) {
     user = await (prisma as any).user.create({ data: { tenantId: tenant.id, email: mt.email, name: null } });
   }
 
-  setPendingUser(pending.rid, user.id);
+  await setPendingUser(pending.rid, user.id);
 
   // audit login
   await (prisma as any).audit.create({ data: { tenantId: tenant.id, userId: user.id, action: 'login.magic', ip: req.ip || null, userAgent: req.headers.get('user-agent') || null } });
@@ -68,13 +68,13 @@ export async function GET(req: NextRequest) {
   // Issue code and publish handoff
   const { redirect, handoff } = await issueCodeAndBuildRedirect({ tenantId: tenant.id, pendingRid: pending.rid, userId: user.id, state: pending.state });
   await publishSSE(pending.rid, 'loginComplete', { redirect, handoff });
-  completePending(pending.rid);
+  await completePending(pending.rid);
   return html(`<h1>Signed in</h1><p>You may now return to your original device.</p><p><a href="${redirect}">Continue</a></p>`);
 }
 
 async function issueCodeAndBuildRedirect(params: { tenantId: string; pendingRid: string; userId: string; state: string | null }) {
   // Load pending again
-  const pending = getPending(params.pendingRid)!;
+  const pending = await getPending(params.pendingRid)!;
   // Create auth code
   const code = randomUrlSafe(32);
   const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
@@ -98,7 +98,9 @@ async function issueCodeAndBuildRedirect(params: { tenantId: string; pendingRid:
       codeChallengeMethod: pending.codeChallengeMethod,
       authTime: Math.floor(Date.now() / 1000),
     });
-  } catch {}
+  } catch (e) {
+    console.error('Failed to record auth code metadata', e);
+  }
 
   const qp = serializeParams({ code, state: pending.state });
   const redirect = pending.redirectUri + qp;
@@ -117,7 +119,8 @@ async function issueCodeAndBuildRedirect(params: { tenantId: string; pendingRid:
         .setIssuedAt()
         .setExpirationTime('2m')
         .sign(key);
-    } catch {
+    } catch (e) {
+      console.error('Failed to sign handoff token', e);
       handoff = null;
     }
   }

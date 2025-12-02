@@ -16,7 +16,7 @@ export async function POST(req: NextRequest) {
   const parse = schema.safeParse({ email, rid });
   if (!parse.success) return NextResponse.json({ error: 'invalid_request' }, { status: 400 });
 
-  const pending = getPending(rid);
+  const pending = await getPending(rid);
   if (!pending || pending.tenantSlug !== tenantSlug)
     return NextResponse.json({ error: 'expired_request' }, { status: 400 });
 
@@ -29,7 +29,7 @@ export async function POST(req: NextRequest) {
   const tenant = await findTenantBySlug(tenantSlug);
   if (!tenant) return NextResponse.json({ error: 'unknown tenant' }, { status: 400 });
 
-  const mt = issueMagicToken({ tenantId: tenant.id, tenantSlug, rid, email });
+  const mt = await issueMagicToken({ tenantId: tenant.id, tenantSlug, rid, email });
 
   // In a real system, send email containing magic link to mt.email.
   // Provide a debug link for local/testing scenarios.

@@ -15,12 +15,12 @@ export async function POST(req: NextRequest) {
 
   // Try to parse JSON, fallback to form data
   let payload: any = null;
-  try { payload = await req.json(); } catch {}
+  try { payload = await req.json(); } catch (e) { console.error('Failed to parse JSON payload for logout', e); }
   if (!payload) {
     try {
       const fd = await req.formData();
       payload = Object.fromEntries(Array.from(fd.entries()) as [string, string][]);
-    } catch {}
+    } catch (e) { console.error('Failed to parse form data payload for logout', e); }
   }
 
   const refreshToken = payload?.refresh_token as string | undefined;

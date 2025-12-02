@@ -18,7 +18,9 @@ export default async function ProtectedPage() {
       });
       if (res.ok) userinfo = await res.json();
     }
-  } catch {}
+  } catch (e) {
+    console.error('Failed to load userinfo', e);
+  }
 
   return (
     <main style={{ padding: 24, maxWidth: 800 }}>
