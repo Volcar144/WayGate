@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getTenant } from '@/lib/tenant';
-import { completePending, getPending, scopesFromString, serializeParams } from '@/services/authz';
+import { completePending, getPending, scopesFromString, serializeParams, publishSSE } from '@/services/authz';
 import { prisma } from '@/lib/prisma';
 import { findTenantBySlug, getActivePrivateJwk } from '@/services/jwks';
 import { SignJWT, importJWK } from 'jose';
@@ -56,20 +56,26 @@ export async function POST(req: NextRequest) {
 
   const redirect = pending.redirectUri + serializeParams({ code, state: pending.state });
 
-  // Optional signed handoff token
+  // Optional signed handoff token and SSE notify for enchanted flow
+  let handoff: string | null = null;
   const priv = await getActivePrivateJwk(pending.tenantId);
   if (priv) {
     try {
       const key = await importJWK(priv as any, 'RS256');
       const issuer = getIssuerURL();
-      await new SignJWT({ sub: pending.userId, rid: pending.rid, aud: pending.clientId })
+      handoff = await new SignJWT({ sub: pending.userId, rid: pending.rid, aud: pending.clientId })
         .setProtectedHeader({ alg: 'RS256', kid: (priv as any).kid })
         .setIssuer(issuer)
         .setIssuedAt()
         .setExpirationTime('2m')
         .sign(key);
-    } catch {}
+    } catch {
+      handoff = null;
+    }
   }
+
+  // Notify any listeners (desktop tab) that login is complete
+  await publishSSE(pending.rid, 'loginComplete', { redirect, handoff });
 
   completePending(rid);
   return NextResponse.json({ redirect });
