@@ -141,6 +141,17 @@ export async function findTenantBySlug(slug: string): Promise<{ id: string } | n
   return tenant ? { id: tenant.id } : null;
 }
 
+export async function getActiveKeyForTenant(tenantId: string): Promise<{ kid: string; privateJwk: JWK; publicJwk: JWK } | null> {
+  const active = await (prisma as any).jwkKey.findFirst({
+    where: { tenantId, status: 'active' },
+    select: { kid: true, pubJwk: true, privJwkEncrypted: true },
+  });
+  if (!active) return null;
+  const privateJwk = decryptPrivateJwk(active.privJwkEncrypted as string);
+  const publicJwk = active.pubJwk as JWK;
+  return { kid: active.kid as string, privateJwk, publicJwk };
+}
+
 async function generateRS256(): Promise<{ publicJwk: JWK; privateJwk: JWK; kid: string }> {
   const { publicKey, privateKey } = await generateKeyPair('RS256', { modulusLength: 2048 });
   const publicJwk = (await exportJWK(publicKey)) as JWK;
