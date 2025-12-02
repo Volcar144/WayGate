@@ -124,17 +124,23 @@ model RefreshToken {
   @@index([tenantId])
 }
 
+enum JwkStatus {
+  staged
+  active
+  retired
+}
+
 model JwkKey {
-  id         String   @id @default(uuid()) @db.Uuid
-  tenantId   String   @db.Uuid
-  kid        String
-  kty        String
-  alg        String?
-  use        String?
-  publicJwk  Json
-  privateJwk Json?
-  createdAt  DateTime @default(now())
-  rotatedAt  DateTime?
+  id               String    @id @default(uuid()) @db.Uuid
+  tenantId         String    @db.Uuid
+  kid              String
+  pubJwk           Json
+  privJwkEncrypted String
+  status           JwkStatus @default(staged)
+  notBefore        DateTime  @default(now())
+  notAfter         DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
 
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
