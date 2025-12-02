@@ -1,87 +1,59 @@
-Waygate Scaffold
+Waygate Demo
 
-This repository initializes the Waygate monorepo with a Next.js 15 App Router project and Prisma configured for a multi-tenant identity provider that deploys to Vercel.
+This monorepo contains:
+- Provider: a multi-tenant OpenID Provider (apps/provider)
+- RP: a demo Next.js relying party (apps/rp) that authenticates against the provider using Authorization Code + PKCE, verifies tokens with JWKS, enforces auth on a protected route, and supports sign-out.
 
-Structure
-- apps/provider: Identity Provider (Next.js App Router + Prisma)
-- apps/rp: Sample relying party app (Next.js App Router)
-- packages/*: Shared configuration (tsconfig, etc.)
+Local development (end-to-end)
 
 Prerequisites
-- Node 18.18+ or 20+
-- pnpm 9+
-- A PostgreSQL database (Supabase recommended)
+- Node 20+ and pnpm
+- A local Postgres (the defaults below assume postgres:postgres@localhost:5432)
 
-Quick start
-1) Copy envs
-cp .env.example apps/provider/.env
+1) Configure and run the Provider
+- Copy the example env to apps/provider/.env and adjust as needed
+  cp .env.example apps/provider/.env
+- Ensure SUPABASE_DATABASE_URL is set in apps/provider/.env
+- From apps/provider, generate Prisma client, run migrations, and seed a tenant + client
+  pnpm prisma:generate
+  pnpm prisma:migrate:dev
+  pnpm prisma:seed
+- The seed prints the client credentials. By default:
+  - Tenant slug: example
+  - Client ID: example-client
+  - Redirect URI (pre-registered): http://localhost:3001/callback
+- Start the Provider (port 3000)
+  pnpm dev
 
-2) Update apps/provider/.env
-- SUPABASE_DATABASE_URL: Your Supabase Postgres connection string
-- SESSION_SECRET: 32+ char secret
-- Optional: ISSUER_URL and SMTP/Redis configs as needed
+2) Configure the RP
+- Create apps/rp/.env with at least:
+  WAYGATE_TENANT_SLUG=example
+  WAYGATE_CLIENT_ID=example-client
+  WAYGATE_CLIENT_SECRET=<value printed by seed>  # optional; omit for public client
+  RP_REDIRECT_URI=http://localhost:3001/callback
+  # Optional: override provider base URL (defaults to http://localhost:3000)
+  WAYGATE_BASE_URL=http://localhost:3000
+- Start the RP (port 3001)
+  pnpm --filter rp dev
 
-3) Install deps
-pnpm install
+3) Sign-in flow
+- Visit http://localhost:3001
+- Click "Sign in" which will
+  - generate PKCE verifier/challenge and nonce
+  - redirect to http://localhost:3000/a/example/oauth/authorize
+- On the provider authorize page, enter an email and send a magic link
+  - For local dev, the UI renders a "debug" magic link you can click directly
+- After authenticating and consenting, you will be redirected back to the RP callback
+  - The RP exchanges the code via a server API route (/api/waygate/token) using the PKCE verifier
+  - The RP verifies the ID token (iss/aud/nonce) and access token using jose and the provider JWKS
+  - A session cookie is set in the RP
+- Visit http://localhost:3001/protected to see ID/access token claims and userinfo
 
-4) Generate Prisma client and apply migrations
-cd apps/provider
-pnpm prisma:generate
-# For first-time local dev you can create an initial migration:
-# pnpm prisma:migrate:dev --name init
-# For deploy environments use:
-# pnpm prisma:migrate:deploy
-
-5) Seed sample data
-pnpm prisma:seed
-
-6) Run all apps
-pnpm dev
-
-- Provider will run on http://localhost:3000
-- RP will run on http://localhost:3001
-
-Tenant routing (/a/{tenant})
-Requests are routed under a tenant prefix. The provider middleware extracts the tenant slug from the URL and attaches it to the request context via the x-tenant header.
-
-- Path format: /a/{tenant}/...
-- Local-only fallback: when running on localhost or 127.0.0.1, you can provide ?tenant={slug} if the path doesn’t include /a/{tenant}
-- Access tenant in server components or routes with getTenant():
-
-import { getTenant } from 'apps/provider/src/lib/tenant';
-const tenant = getTenant();
-
-Issuer URL detection
-The issuer URL used for OIDC/OAuth flows is resolved with the following precedence:
-1) ISSUER_URL (environment variable) if set. Use this in production to force a canonical value.
-2) Derived from the incoming request: {scheme}://{host}/a/{tenant}
-   - scheme is taken from x-forwarded-proto when present, otherwise http
-   - the tenant value comes from the tenant context set by middleware
-
-Environment variables
-- SUPABASE_DATABASE_URL (required): Postgres connection string
-- ISSUER_URL (optional): Explicit issuer URL override
-- SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, EMAIL_FROM (optional, TBD)
-- REDIS_HOST, REDIS_PORT, REDIS_USERNAME, REDIS_PASSWORD (optional)
-- ENCRYPTION_KEY (optional but recommended): 32+ chars
-- SESSION_SECRET (required): 32+ chars
-
-Prisma schema (multi-tenant)
-The provider app defines the following tables:
-- tenants, users, credentials, clients, auth_codes, sessions, refresh_tokens, jwk_keys, consents, audits
-
-A seed script creates a sample tenant (slug: example) and client (clientId: example-client), and prints a generated client secret.
-
-Vercel deployment
-- The apps are standard Next.js 15 App Router apps and can be deployed to Vercel.
-- Set the same environment variables on Vercel for the provider app. If you rely on dynamic issuer detection behind a proxy, ensure x-forwarded-proto is forwarded, or set ISSUER_URL explicitly.
-
-Scripts
-- pnpm dev: run all apps in dev (via Turborepo)
-- pnpm build: build all apps
-- pnpm lint: lint all apps
-- apps/provider: prisma:* scripts for schema and database management
+4) Sign-out
+- From the protected page (or home when authenticated) click "Sign out"
+- The RP calls the provider logout endpoint (/a/{tenant}/logout) with the refresh token and clears the local session
 
 Notes
-- The tenant middleware runs only on paths under /a/*.
-- In development you can hit http://localhost:3000/a/example or http://localhost:3000/a/example/api/ping to see the tenant context in action.
+- JWKS caching and rotation: the RP uses jose's createRemoteJWKSet, which caches the provider JWKS and automatically re-fetches on unknown key IDs. This tolerates signing key rotation.
+- Authorization Code + PKCE is required by the provider for public clients. Confidential clients can authenticate to the token endpoint using Basic auth with client_secret.
+- The RP enforces authentication on the /protected route by redirecting to /auth/login when no session is present.
