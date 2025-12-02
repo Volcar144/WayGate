@@ -131,6 +131,12 @@ export async function POST(req: NextRequest) {
     const at = await signAccessToken({ tenantId: tenant.id, sub: codeRow.userId, clientId: client.clientId, scope });
     const idt = await signIdToken({ tenantId: tenant.id, sub: codeRow.userId, clientId: client.clientId, nonce: meta.nonce, authTime: meta.authTime || Math.floor(Date.now() / 1000) });
 
+    // Persist granted scope bound to this refresh token (in-memory)
+    try {
+      const { setRefreshMeta } = await import('@/services/authz');
+      setRefreshMeta(refresh.token, scope);
+    } catch {}
+
     await (prisma as any).audit.create({
       data: {
         tenantId: tenant.id,
@@ -192,7 +198,15 @@ export async function POST(req: NextRequest) {
     // Issue new tokens
     // obtain userId from session
     const userId = session.userId;
-    const scope = 'openid';
+    // Preserve original granted scope per RFC 6749 Section 6
+    let scope = 'openid';
+    try {
+      const { getRefreshMeta, setRefreshMeta } = await import('@/services/authz');
+      const meta = getRefreshMeta(parse.data.refresh_token);
+      if (meta && meta.scope) scope = meta.scope;
+      // Persist the same scope bound to the rotated refresh token
+      setRefreshMeta(created.token, scope);
+    } catch {}
     const at = await signAccessToken({ tenantId: tenant.id, sub: userId, clientId: client.clientId, scope });
     const idt = await signIdToken({ tenantId: tenant.id, sub: userId, clientId: client.clientId, authTime: Math.floor(new Date(session.createdAt).getTime() / 1000) });
 

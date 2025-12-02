@@ -40,6 +40,11 @@ export type CodeMeta = {
   createdAt: number; // epoch ms
 };
 
+export type RefreshMeta = {
+  scope: string;
+  createdAt: number; // epoch ms
+};
+
 const g = global as unknown as {
   __authz?: {
     pending: Map<string, PendingAuthRequest>;
@@ -47,6 +52,7 @@ const g = global as unknown as {
     magic: Map<string, MagicToken>;
     ratelimit: Map<string, number[]>; // key -> timestamps
     codeMeta: Map<string, CodeMeta>;
+    refreshMeta: Map<string, RefreshMeta>;
   };
 };
 
@@ -58,6 +64,7 @@ function ensureStore() {
       magic: new Map(),
       ratelimit: new Map(),
       codeMeta: new Map(),
+      refreshMeta: new Map(),
     };
   }
   return g.__authz!;
@@ -195,6 +202,10 @@ export function cleanupExpired() {
     // Keep code metadata for up to 10 minutes by default
     if (meta.createdAt <= t - 10 * 60 * 1000) store.codeMeta.delete(code);
   }
+  for (const [token, meta] of store.refreshMeta) {
+    // Drop refresh metadata after 60 days
+    if (meta.createdAt <= t - 60 * 24 * 60 * 60 * 1000) store.refreshMeta.delete(token);
+  }
 }
 
 export function recordAuthCodeMeta(code: string, meta: Omit<CodeMeta, 'createdAt'>) {
@@ -212,6 +223,16 @@ export function consumeAuthCodeMeta(code: string): CodeMeta | null {
   const m = codeMeta.get(code) || null;
   if (m) codeMeta.delete(code);
   return m;
+}
+
+export function setRefreshMeta(token: string, scope: string) {
+  const { refreshMeta } = ensureStore();
+  refreshMeta.set(token, { scope, createdAt: now() });
+}
+
+export function getRefreshMeta(token: string): RefreshMeta | null {
+  const { refreshMeta } = ensureStore();
+  return refreshMeta.get(token) || null;
 }
 
 export function ratelimitCheck(key: string, limit: number, windowMs: number): boolean {
