@@ -53,6 +53,16 @@ export async function POST(req: NextRequest) {
       expiresAt,
     },
   });
+  // Record code metadata for PKCE + nonce handling
+  try {
+    const { recordAuthCodeMeta } = await import('@/services/authz');
+    recordAuthCodeMeta(code, {
+      nonce: pending.nonce,
+      codeChallenge: pending.codeChallenge,
+      codeChallengeMethod: pending.codeChallengeMethod,
+      authTime: Math.floor(Date.now() / 1000),
+    });
+  } catch {}
 
   const redirect = pending.redirectUri + serializeParams({ code, state: pending.state });
 

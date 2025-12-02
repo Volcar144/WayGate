@@ -32,12 +32,27 @@ export type MagicToken = {
 };
 
 // Simple in-memory stores with global cache for dev hot-reload
+export type CodeMeta = {
+  nonce: string | null;
+  codeChallenge: string | null;
+  codeChallengeMethod: 'S256' | 'plain' | null;
+  authTime: number; // epoch seconds
+  createdAt: number; // epoch ms
+};
+
+export type RefreshMeta = {
+  scope: string;
+  createdAt: number; // epoch ms
+};
+
 const g = global as unknown as {
   __authz?: {
     pending: Map<string, PendingAuthRequest>;
     sse: Map<string, Set<WritableStreamDefaultWriter>>;
     magic: Map<string, MagicToken>;
     ratelimit: Map<string, number[]>; // key -> timestamps
+    codeMeta: Map<string, CodeMeta>;
+    refreshMeta: Map<string, RefreshMeta>;
   };
 };
 
@@ -48,6 +63,8 @@ function ensureStore() {
       sse: new Map(),
       magic: new Map(),
       ratelimit: new Map(),
+      codeMeta: new Map(),
+      refreshMeta: new Map(),
     };
   }
   return g.__authz!;
@@ -181,6 +198,41 @@ export function cleanupExpired() {
   for (const [tok, mt] of store.magic) {
     if (mt.expiresAt <= t || mt.used) store.magic.delete(tok);
   }
+  for (const [code, meta] of store.codeMeta) {
+    // Keep code metadata for up to 10 minutes by default
+    if (meta.createdAt <= t - 10 * 60 * 1000) store.codeMeta.delete(code);
+  }
+  for (const [token, meta] of store.refreshMeta) {
+    // Drop refresh metadata after 60 days
+    if (meta.createdAt <= t - 60 * 24 * 60 * 60 * 1000) store.refreshMeta.delete(token);
+  }
+}
+
+export function recordAuthCodeMeta(code: string, meta: Omit<CodeMeta, 'createdAt'>) {
+  const { codeMeta } = ensureStore();
+  codeMeta.set(code, { ...meta, createdAt: now() });
+}
+
+export function getAuthCodeMeta(code: string): CodeMeta | null {
+  const { codeMeta } = ensureStore();
+  return codeMeta.get(code) || null;
+}
+
+export function consumeAuthCodeMeta(code: string): CodeMeta | null {
+  const { codeMeta } = ensureStore();
+  const m = codeMeta.get(code) || null;
+  if (m) codeMeta.delete(code);
+  return m;
+}
+
+export function setRefreshMeta(token: string, scope: string) {
+  const { refreshMeta } = ensureStore();
+  refreshMeta.set(token, { scope, createdAt: now() });
+}
+
+export function getRefreshMeta(token: string): RefreshMeta | null {
+  const { refreshMeta } = ensureStore();
+  return refreshMeta.get(token) || null;
 }
 
 export function ratelimitCheck(key: string, limit: number, windowMs: number): boolean {
