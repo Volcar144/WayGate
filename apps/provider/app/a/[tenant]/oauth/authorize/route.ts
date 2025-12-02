@@ -120,7 +120,7 @@ export async function GET(req: NextRequest) {
     e.preventDefault();
     statusEl.textContent = 'Sending...';
     const fd = new FormData(form);
-    const res = await fetch('./magic/request', { method: 'POST', body: fd });
+    const res = await fetch('../magic/request', { method: 'POST', body: fd });
     const data = await res.json().catch(()=>({ ok:false }));
     if (res.ok && data.ok) {
       statusEl.textContent = data.message || 'Magic link sent. Check your email.';
@@ -143,7 +143,7 @@ export async function GET(req: NextRequest) {
     e.preventDefault();
     consentStatus.textContent = 'Processing...';
     const fd = new FormData(consentForm);
-    const res = await fetch('./authorize/consent', { method: 'POST', body: fd });
+    const res = await fetch('./consent', { method: 'POST', body: fd });
     const data = await res.json();
     if (res.ok && data.redirect) {
       window.location.href = data.redirect;
@@ -156,13 +156,13 @@ export async function GET(req: NextRequest) {
   denyBtn.addEventListener('click', async () => {
     const fd = new FormData(consentForm);
     fd.set('deny', '1');
-    const res = await fetch('./authorize/consent', { method: 'POST', body: fd });
+    const res = await fetch('./consent', { method: 'POST', body: fd });
     const data = await res.json();
     if (data.redirect) window.location.href = data.redirect;
   });
 
   // Enchanted link via SSE
-  const ev = new EventSource('./authorize/sse?rid=${pending.rid}');
+  const ev = new EventSource('./sse?rid=${pending.rid}');
   ev.addEventListener('loginComplete', (e) => {
     try { const data = JSON.parse(e.data); if (data.redirect) window.location.href = data.redirect; } catch {}
   });

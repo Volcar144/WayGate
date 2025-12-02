@@ -5,6 +5,7 @@ import { findTenantBySlug, getActivePrivateJwk } from '@/services/jwks';
 import { prisma } from '@/lib/prisma';
 import { SignJWT, importJWK } from 'jose';
 import { getIssuerURL } from '@/utils/issuer';
+import { randomBytes } from 'node:crypto';
 
 function html(body: string, status = 200) {
   return new NextResponse(`<!doctype html><meta charset="utf-8"/><body style="font-family:system-ui;padding:24px;max-width:720px;margin:0 auto">${body}</body>`, {
@@ -114,7 +115,6 @@ async function issueCodeAndBuildRedirect(params: { tenantId: string; pendingRid:
   return { redirect, code, handoff };
 }
 
-import { randomBytes } from 'node:crypto';
 function randomUrlSafe(n: number) {
   const buf = randomBytes(n);
   // Base64url encode
