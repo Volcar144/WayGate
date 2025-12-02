@@ -24,7 +24,12 @@ export async function getSession(): Promise<{
   const raw = cookies().get('rp_session')?.value;
   if (!raw) return { session: null };
   let sess: SessionCookie | null = null;
-  try { sess = JSON.parse(raw); } catch { return { session: null }; }
+  try {
+    sess = JSON.parse(raw);
+  } catch (e) {
+    console.error('Failed to parse rp_session cookie', e);
+    return { session: null };
+  }
 
   try {
     const idv = await verifyIdToken(sess.id_token);
@@ -59,7 +64,9 @@ export async function getSession(): Promise<{
           const atv = await verifyAccessToken(updated.access_token);
           return { session: updated, idClaims: idv.payload as Claims, accessClaims: atv.payload as Claims };
         }
-      } catch {}
+      } catch (err) {
+        console.error('Failed to refresh tokens', err);
+      }
     }
   }
   return { session: null };

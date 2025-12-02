@@ -1,5 +1,6 @@
 import { randomBytes } from 'node:crypto';
 import { prisma } from '@/lib/prisma';
+import { getRedis } from '@/lib/redis';
 
 export type PendingAuthRequest = {
   rid: string;
@@ -31,7 +32,7 @@ export type MagicToken = {
   used: boolean;
 };
 
-// Simple in-memory stores with global cache for dev hot-reload
+// Simple in-memory stores with global cache for dev hot-reload (fallback when Redis is absent)
 export type CodeMeta = {
   nonce: string | null;
   codeChallenge: string | null;
@@ -82,8 +83,19 @@ export function newToken() {
   return randomBytes(24).toString('base64url');
 }
 
-export function createPendingAuthRequest(params: Omit<PendingAuthRequest, 'rid' | 'createdAt' | 'expiresAt' | 'userId' | 'completed'> & { ttlMs?: number }): PendingAuthRequest {
-  const store = ensureStore();
+function keyPending(rid: string) {
+  return `authz:pending:${rid}`;
+}
+function keyMagic(token: string) {
+  return `authz:magic:${token}`;
+}
+function channelSSE(rid: string) {
+  return `authz:sse:${rid}`;
+}
+
+export async function createPendingAuthRequest(
+  params: Omit<PendingAuthRequest, 'rid' | 'createdAt' | 'expiresAt' | 'userId' | 'completed'> & { ttlMs?: number },
+): Promise<PendingAuthRequest> {
   const rid = newRid();
   const createdAt = now();
   const ttl = params.ttlMs ?? 5 * 60 * 1000; // 5 minutes
@@ -95,12 +107,32 @@ export function createPendingAuthRequest(params: Omit<PendingAuthRequest, 'rid' 
     userId: null,
     completed: false,
   };
-  store.pending.set(rid, req);
+
+  const redis = await getRedis();
+  if (redis) {
+    const ttlSec = Math.max(1, Math.ceil(ttl / 1000));
+    await redis.set(keyPending(rid), JSON.stringify(req), 'EX', ttlSec);
+  } else {
+    const store = ensureStore();
+    store.pending.set(rid, req);
+  }
   return req;
 }
 
-export function getPending(rid: string | null | undefined): PendingAuthRequest | null {
+export async function getPending(rid: string | null | undefined): Promise<PendingAuthRequest | null> {
   if (!rid) return null;
+  const redis = await getRedis();
+  if (redis) {
+    const raw = await redis.get(keyPending(rid));
+    if (!raw) return null;
+    try {
+      const req = JSON.parse(raw) as PendingAuthRequest;
+      return req;
+    } catch (e) {
+      console.error('Failed to parse pending request from Redis', e);
+      return null;
+    }
+  }
   const { pending } = ensureStore();
   const req = pending.get(rid);
   if (!req) return null;
@@ -111,18 +143,54 @@ export function getPending(rid: string | null | undefined): PendingAuthRequest |
   return req;
 }
 
-export function setPendingUser(rid: string, userId: string): PendingAuthRequest | null {
+export async function setPendingUser(rid: string, userId: string): Promise<PendingAuthRequest | null> {
+  const redis = await getRedis();
+  if (redis) {
+    const key = keyPending(rid);
+    const raw = await redis.get(key);
+    if (!raw) return null;
+    let req: PendingAuthRequest;
+    try {
+      req = JSON.parse(raw) as PendingAuthRequest;
+    } catch (e) {
+      console.error('Failed to parse pending request from Redis', e);
+      return null;
+    }
+    req.userId = userId;
+    let ttlMs = await redis.pttl(key);
+    if (ttlMs < 0) ttlMs = 60_000; // default 60s if missing TTL
+    await redis.set(key, JSON.stringify(req), 'EX', Math.max(1, Math.ceil(ttlMs / 1000)));
+    return req;
+  }
   const { pending } = ensureStore();
-  const req = getPending(rid);
+  const req = await getPending(rid);
   if (!req) return null;
   req.userId = userId;
   pending.set(rid, req);
   return req;
 }
 
-export function completePending(rid: string): PendingAuthRequest | null {
+export async function completePending(rid: string): Promise<PendingAuthRequest | null> {
+  const redis = await getRedis();
+  if (redis) {
+    const key = keyPending(rid);
+    const raw = await redis.get(key);
+    if (!raw) return null;
+    let req: PendingAuthRequest;
+    try {
+      req = JSON.parse(raw) as PendingAuthRequest;
+    } catch (e) {
+      console.error('Failed to parse pending request from Redis', e);
+      return null;
+    }
+    req.completed = true;
+    let ttlMs = await redis.pttl(key);
+    if (ttlMs < 0) ttlMs = 60_000;
+    await redis.set(key, JSON.stringify(req), 'EX', Math.max(1, Math.ceil(ttlMs / 1000)));
+    return req;
+  }
   const { pending } = ensureStore();
-  const req = getPending(rid);
+  const req = await getPending(rid);
   if (!req) return null;
   req.completed = true;
   pending.set(rid, req);
@@ -141,6 +209,12 @@ export function unsubscribeSSE(rid: string, writer: WritableStreamDefaultWriter)
 }
 
 export async function publishSSE(rid: string, event: string, data: any) {
+  const redis = await getRedis();
+  if (redis) {
+    const payload = JSON.stringify({ event, data });
+    await redis.publish(channelSSE(rid), payload);
+    return;
+  }
   const { sse } = ensureStore();
   const subs = sse.get(rid);
   if (!subs || subs.size === 0) return;
@@ -149,15 +223,14 @@ export async function publishSSE(rid: string, event: string, data: any) {
     Array.from(subs).map(async (w) => {
       try {
         await w.write(new TextEncoder().encode(line));
-      } catch {
-        // ignore
+      } catch (e) {
+        console.error('SSE write failed', e);
       }
     })
   );
 }
 
-export function issueMagicToken(params: { tenantId: string; tenantSlug: string; rid: string; email: string; ttlMs?: number }): MagicToken {
-  const store = ensureStore();
+export async function issueMagicToken(params: { tenantId: string; tenantSlug: string; rid: string; email: string; ttlMs?: number }): Promise<MagicToken> {
   const token = newToken();
   const createdAt = now();
   const ttl = params.ttlMs ?? 10 * 60 * 1000; // 10 minutes
@@ -171,11 +244,41 @@ export function issueMagicToken(params: { tenantId: string; tenantSlug: string; 
     expiresAt: createdAt + ttl,
     used: false,
   };
-  store.magic.set(token, mt);
+
+  const redis = await getRedis();
+  if (redis) {
+    const key = keyMagic(token);
+    await redis.set(key, JSON.stringify(mt), 'EX', Math.max(1, Math.ceil(ttl / 1000)));
+  } else {
+    const store = ensureStore();
+    store.magic.set(token, mt);
+  }
   return mt;
 }
 
-export function consumeMagicToken(token: string): MagicToken | null {
+export async function consumeMagicToken(token: string): Promise<MagicToken | null> {
+  const redis = await getRedis();
+  if (redis) {
+    const key = keyMagic(token);
+    try {
+      const raw = await (redis as any).getdel(key);
+      if (!raw) return null;
+      const mt = JSON.parse(raw as string) as MagicToken;
+      return mt;
+    } catch (e) {
+      // Fallback if GETDEL not supported
+      try {
+        const res = await (redis as any).multi().get(key).del(key).exec();
+        const raw = res?.[0]?.[1] as string | null;
+        if (!raw) return null;
+        const mt = JSON.parse(raw) as MagicToken;
+        return mt;
+      } catch (err) {
+        console.error('Failed to consume magic token from Redis', err);
+        return null;
+      }
+    }
+  }
   const store = ensureStore();
   const mt = store.magic.get(token);
   if (!mt) return null;

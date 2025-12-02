@@ -15,7 +15,7 @@ export async function POST(req: NextRequest) {
   const deny = form.get('deny') ? true : false;
   const remember = form.get('remember') ? true : false;
 
-  const pending = getPending(rid);
+  const pending = await getPending(rid);
   if (!pending) return NextResponse.json({ error: 'expired_request' }, { status: 400 });
   if (!pending.userId) return NextResponse.json({ error: 'login_required' }, { status: 400 });
 
@@ -62,7 +62,9 @@ export async function POST(req: NextRequest) {
       codeChallengeMethod: pending.codeChallengeMethod,
       authTime: Math.floor(Date.now() / 1000),
     });
-  } catch {}
+  } catch (e) {
+    console.error('Failed to record auth code metadata', e);
+  }
 
   const redirect = pending.redirectUri + serializeParams({ code, state: pending.state });
 
@@ -87,7 +89,7 @@ export async function POST(req: NextRequest) {
   // Notify any listeners (desktop tab) that login is complete
   await publishSSE(pending.rid, 'loginComplete', { redirect, handoff });
 
-  completePending(rid);
+  await completePending(rid);
   return NextResponse.json({ redirect });
 }
 

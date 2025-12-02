@@ -8,20 +8,24 @@ export async function GET(req: NextRequest) {
   const error = url.searchParams.get('error');
   const errorDescription = url.searchParams.get('error_description');
   if (error) {
-    return NextResponse.redirect(`/error?error=${encodeURIComponent(error)}&error_description=${encodeURIComponent(errorDescription || '')}`);
+    return NextResponse.json({ error, error_description: errorDescription || null }, { status: 400 });
   }
   const code = url.searchParams.get('code');
   const state = url.searchParams.get('state');
   if (!code || !state) {
-    return NextResponse.redirect('/');
+    return NextResponse.json({ error: 'invalid_request' }, { status: 400 });
   }
 
   const stateCookie = cookies().get('rp_oidc')?.value;
-  if (!stateCookie) return NextResponse.redirect('/');
+  if (!stateCookie) return NextResponse.json({ error: 'invalid_request', error_description: 'missing_state' }, { status: 400 });
   let parsed: { state: string; verifier: string; nonce: string } | null = null;
-  try { parsed = JSON.parse(stateCookie); } catch {}
+  try {
+    parsed = JSON.parse(stateCookie);
+  } catch (e) {
+    return NextResponse.json({ error: 'invalid_request', error_description: 'invalid_state' }, { status: 400 });
+  }
   if (!parsed || parsed.state !== state) {
-    return NextResponse.redirect('/');
+    return NextResponse.json({ error: 'invalid_request', error_description: 'state_mismatch' }, { status: 400 });
   }
 
   const res = await fetch('/api/waygate/token', {
@@ -34,7 +38,8 @@ export async function GET(req: NextRequest) {
     }),
   });
   if (!res.ok) {
-    return NextResponse.redirect('/');
+    const payload = await res.json().catch(() => ({ error: 'server_error' }));
+    return NextResponse.json(payload, { status: res.status });
   }
   const tokenSet = await res.json();
   const idToken: string = tokenSet.id_token;
@@ -45,7 +50,7 @@ export async function GET(req: NextRequest) {
     await verifyIdToken(idToken, parsed.nonce);
     await verifyAccessToken(accessToken);
   } catch (e) {
-    return NextResponse.redirect('/');
+    return NextResponse.json({ error: 'invalid_token' }, { status: 400 });
   }
 
   cookies().set('rp_session', JSON.stringify({ id_token: idToken, access_token: accessToken, refresh_token: refreshToken ?? null, created_at: Date.now() }), {
@@ -57,5 +62,6 @@ export async function GET(req: NextRequest) {
   });
   cookies().delete('rp_oidc');
 
+  // On success, redirect to a protected page
   return NextResponse.redirect('/protected');
 }

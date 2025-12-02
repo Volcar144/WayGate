@@ -1,13 +1,14 @@
 import { NextRequest } from 'next/server';
 import { getTenant } from '@/lib/tenant';
 import { getPending, subscribeSSE, unsubscribeSSE } from '@/services/authz';
+import { newRedisSubscriber } from '@/lib/redis';
 
 export const runtime = 'nodejs';
 
 export async function GET(req: NextRequest) {
   const tenantSlug = getTenant();
   const rid = req.nextUrl.searchParams.get('rid') || '';
-  const pending = getPending(rid);
+  const pending = await getPending(rid);
   if (!tenantSlug || !pending || pending.tenantSlug !== tenantSlug) {
     return new Response('invalid or expired', { status: 400 });
   }
@@ -19,7 +20,27 @@ export async function GET(req: NextRequest) {
   const write = (s: string) => writer.write(encoder.encode(s));
 
   await write(': ok\n\n');
-  subscribeSSE(rid, writer);
+
+  // Try Redis pub/sub first
+  const sub = await newRedisSubscriber();
+  let usingRedis = false;
+  let channel = '';
+  if (sub) {
+    channel = `authz:sse:${rid}`;
+    usingRedis = true;
+    await sub.subscribe(channel);
+    sub.on('message', (_chan: string, message: string) => {
+      try {
+        const { event, data } = JSON.parse(message);
+        const line = `event: ${event}\n` + `data: ${JSON.stringify(data)}\n\n`;
+        void writer.write(encoder.encode(line));
+      } catch (e) {
+        console.error('Failed to handle SSE message', e);
+      }
+    });
+  } else {
+    subscribeSSE(rid, writer);
+  }
 
   // keepalive pings
   const ping = setInterval(() => {
@@ -33,10 +54,23 @@ export async function GET(req: NextRequest) {
   });
 
   // Cleanup on client abort
-  const onAbort = () => {
+  const onAbort = async () => {
     clearInterval(ping);
-    unsubscribeSSE(rid, writer);
-    try { writer.close(); } catch {}
+    if (usingRedis && sub) {
+      try {
+        await sub.unsubscribe(channel);
+      } catch (e) {
+        console.error('Failed to unsubscribe Redis channel', e);
+      }
+      try {
+        await (sub as any).quit?.();
+      } catch (e) {
+        console.error('Failed to quit Redis subscriber', e);
+      }
+    } else {
+      unsubscribeSSE(rid, writer);
+    }
+    try { await writer.close(); } catch (e) { console.error('Failed to close SSE writer', e); }
   };
   // @ts-ignore
   req.signal?.addEventListener?.('abort', onAbort);

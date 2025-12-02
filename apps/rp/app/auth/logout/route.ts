@@ -17,9 +17,13 @@ export async function POST(_req: NextRequest) {
             body: JSON.stringify({ refresh_token: parsed.refresh_token }),
           });
         }
-      } catch {}
+      } catch (e) {
+        console.error('Failed to notify provider logout', e);
+      }
     }
-  } catch {}
+  } catch (e) {
+    console.error('Error during RP logout', e);
+  }
   cookies().delete('rp_session');
   cookies().delete('rp_oidc');
   return NextResponse.redirect('/');
