@@ -1,24 +1,11 @@
 # Node
 node_modules/
-.pnp.cjs
-.pnp.loader.mjs
 .pnpm-store/
 
-# Output
+# Next.js
 .next/
-.turbo/
-dist/
-build/
 out/
-
-# Env
-.env
-.env.*.local
-.env.local
-
-# Prisma
-prisma/*.db
-prisma/migrations/*.lock
+.next/cache/
 
 # Logs
 npm-debug.log*
@@ -26,6 +13,16 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 
-# OS
+# Env
+.env
+apps/*/.env
+
+# Prisma
+apps/provider/prisma/*.db
+
+# Mac
 .DS_Store
-Thumbs.db
+
+# Editor
+.vscode/
+.idea/
