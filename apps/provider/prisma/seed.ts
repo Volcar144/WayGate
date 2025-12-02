@@ -1,5 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 import crypto from 'node:crypto';
+import { ensureActiveKeyForTenant } from '../src/services/jwks';
 
 const prisma = new PrismaClient();
 
@@ -15,6 +16,9 @@ async function main() {
       name: tenantName,
     },
   });
+
+  // Ensure there is at least one active signing key for the tenant
+  await ensureActiveKeyForTenant(tenant.id);
 
   const clientId = 'example-client';
   const clientSecret = crypto.randomBytes(24).toString('base64url');
