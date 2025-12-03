@@ -17,7 +17,10 @@ function html(body: string, status = 400) {
 async function discover(issuer: string): Promise<{ authorization_endpoint: string } | null> {
   try {
     const wellKnown = issuer.replace(/\/$/, '') + '/.well-known/openid-configuration';
-    const res = await fetch(wellKnown, { headers: { 'accept': 'application/json' } });
+    const res = await fetch(wellKnown, {
+      headers: { accept: 'application/json' },
+      signal: AbortSignal.timeout(10_000),
+    });
     if (!res.ok) return null;
     const json = await res.json();
     if (json && typeof json.authorization_endpoint === 'string') return { authorization_endpoint: String(json.authorization_endpoint) };

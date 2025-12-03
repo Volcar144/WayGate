@@ -24,7 +24,10 @@ function escapeHtml(s: string) {
 async function discover(issuer: string): Promise<{ token_endpoint: string; jwks_uri: string; issuer: string; userinfo_endpoint?: string } | null> {
   try {
     const wellKnown = issuer.replace(/\/$/, '') + '/.well-known/openid-configuration';
-    const res = await fetch(wellKnown, { headers: { 'accept': 'application/json' } });
+    const res = await fetch(wellKnown, {
+      headers: { accept: 'application/json' },
+      signal: AbortSignal.timeout(10_000),
+    });
     if (!res.ok) return null;
     const json = await res.json();
     if (json && typeof json.token_endpoint === 'string' && typeof json.jwks_uri === 'string' && typeof json.issuer === 'string') {
@@ -87,6 +90,7 @@ export async function GET(req: NextRequest) {
       method: 'POST',
       headers: { 'content-type': 'application/x-www-form-urlencoded' },
       body: form.toString(),
+      signal: AbortSignal.timeout(15_000),
     });
     tokenResponse = await resp.json();
     if (!resp.ok) {
@@ -110,14 +114,13 @@ export async function GET(req: NextRequest) {
     return html('<h1>Microsoft sign-in failed</h1><p>Invalid ID token</p>', 400);
   }
 
-  // Additional validation: ensure issuer format matches tenant id if available
+  // Additional validation: ensure issuer matches discovery issuer, accounting for {tenantid} placeholder
   const iss = String((claims as any).iss || '');
   const tid = String((claims as any).tid || '');
-  if (iss && tid) {
-    const expected = `https://login.microsoftonline.com/${tid}/v2.0`;
+  if (iss) {
+    let expected = disc.issuer;
+    if (expected.includes('{tenantid}') && tid) expected = expected.replace('{tenantid}', tid);
     if (iss !== expected) {
-      // Some Azure clouds might vary, but for public cloud require the expected issuer
-      // If mismatch, surface as error
       return html('<h1>Microsoft sign-in failed</h1><p>Token issuer mismatch for tenant.</p>', 400);
     }
   }
@@ -136,7 +139,11 @@ export async function GET(req: NextRequest) {
   }
   if (!email && at && disc.userinfo_endpoint) {
     try {
-      const ui = await fetch(disc.userinfo_endpoint, { headers: { Authorization: `Bearer ${at}` } });
+      const ui = await fetch(disc.userinfo_endpoint, {
+        headers: { Authorization: `Bearer ${at}` },
+        signal: AbortSignal.timeout(10_000),
+      });
+      if (!ui.ok) throw new Error('userinfo request failed');
       const userinfo = await ui.json();
       if (userinfo && typeof userinfo.email === 'string') {
         email = String(userinfo.email).toLowerCase();

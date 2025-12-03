@@ -185,15 +185,14 @@ export async function getEnabledProviderTypesForTenant(tenantId: string): Promis
   return (rows || []).map((r) => r.type as IdpType);
 }
 
-export async function getGoogleProvider(tenantId: string): Promise<IdentityProviderConfig | null> {
-  const row = await prisma.identityProvider.findFirst({ where: { tenantId, type: 'google', status: 'enabled' } });
+async function getProviderByType(tenantId: string, type: IdpType): Promise<IdentityProviderConfig | null> {
+  const row = await prisma.identityProvider.findFirst({ where: { tenantId, type, status: 'enabled' } });
   if (!row) return null;
   let clientSecret = '';
   try {
     clientSecret = decryptSecret(row.clientSecretEnc as string);
   } catch (e) {
-    // Log a structured warning to aid debugging without leaking secrets
-    try { console.warn('Failed to decrypt Google client secret', { tenantId, providerId: row.id }); } catch {}
+    try { console.warn(`Failed to decrypt ${type} client secret`, { tenantId, providerId: row.id }); } catch {}
     return null;
   }
   return {
@@ -209,25 +208,10 @@ export async function getGoogleProvider(tenantId: string): Promise<IdentityProvi
   };
 }
 
+export async function getGoogleProvider(tenantId: string): Promise<IdentityProviderConfig | null> {
+  return getProviderByType(tenantId, 'google');
+}
+
 export async function getMicrosoftProvider(tenantId: string): Promise<IdentityProviderConfig | null> {
-  const row = await prisma.identityProvider.findFirst({ where: { tenantId, type: 'microsoft', status: 'enabled' } });
-  if (!row) return null;
-  let clientSecret = '';
-  try {
-    clientSecret = decryptSecret(row.clientSecretEnc as string);
-  } catch (e) {
-    try { console.warn('Failed to decrypt Microsoft client secret', { tenantId, providerId: row.id }); } catch {}
-    return null;
-  }
-  return {
-    id: row.id as string,
-    tenantId: row.tenantId as string,
-    type: row.type as IdpType,
-    clientId: row.clientId as string,
-    clientSecretEnc: row.clientSecretEnc as string,
-    clientSecret,
-    issuer: row.issuer as string,
-    scopes: (row.scopes || []) as string[],
-    status: row.status as ProviderStatus,
-  };
+  return getProviderByType(tenantId, 'microsoft');
 }
