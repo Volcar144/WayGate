@@ -59,8 +59,14 @@ jobs:
             - ~/.pnpm-store
 
       - run:
-          name: Install Playwright browsers
-          command: pnpm exec playwright install
+          name: Install Playwright browsers and OS deps (with retry)
+          command: |
+            set -e
+            export DEBIAN_FRONTEND=noninteractive
+            retry() { for i in 1 2 3; do "$@" && break || sleep 5; done }
+            retry sudo -E apt-get update -yq || true
+            pnpm exec playwright install
+            pnpm exec playwright install-deps
 
       - run:
           name: Run E2E tests (Playwright)

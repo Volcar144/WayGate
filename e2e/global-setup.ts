@@ -80,9 +80,12 @@ export default async function globalSetup(_config: FullConfig) {
   const providerDir = path.join(repoRoot, 'apps', 'provider');
 
   // Apply DB migrations and seed tenant/client
+  const DEFAULT_DB_URL = isCI
+    ? 'postgresql://postgres:postgres@postgres:5432/waygate'
+    : 'postgresql://postgres:postgres@localhost:5432/waygate';
   const DATABASE_URL =
     process.env.SUPABASE_DATABASE_URL || process.env.DATABASE_URL || process.env.DIRECT_URL ||
-    'postgresql://postgres:postgres@localhost:5432/waygate';
+    DEFAULT_DB_URL;
   const env = {
     SUPABASE_DATABASE_URL: DATABASE_URL,
     ENCRYPTION_KEY: process.env.ENCRYPTION_KEY || 'dev_encryption_key_change_me_please_32_chars',

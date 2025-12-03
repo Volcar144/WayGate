@@ -1,8 +1,11 @@
 import { defineConfig, devices } from '@playwright/test';
 
+const DEFAULT_DB_URL = process.env.CI
+  ? 'postgresql://postgres:postgres@postgres:5432/waygate'
+  : 'postgresql://postgres:postgres@localhost:5432/waygate';
 const SUPABASE_DATABASE_URL =
   process.env.SUPABASE_DATABASE_URL || process.env.DATABASE_URL || process.env.DIRECT_URL ||
-  'postgresql://postgres:postgres@localhost:5432/waygate';
+  DEFAULT_DB_URL;
 const REDIS_HOST = process.env.REDIS_HOST || 'localhost';
 const REDIS_PORT = process.env.REDIS_PORT || '6379';
 const SMTP_HOST = process.env.SMTP_HOST || 'localhost';
