@@ -6,6 +6,16 @@ import { isAdminRequest } from '@/utils/admin';
 
 export const runtime = 'nodejs';
 
+/**
+ * Revoke refresh tokens and expire sessions for a tenant or a specific user.
+ *
+ * Enforces admin access and resolves the current tenant; if the request JSON contains `user_id`,
+ * revokes all sessions and associated refresh tokens for that user within the tenant and records an audit event,
+ * otherwise revokes all sessions for the tenant and records a tenant-wide audit event.
+ *
+ * @param req - The incoming NextRequest; may include a JSON body with an optional `user_id` string to target a specific user
+ * @returns A NextResponse JSON payload: on success `{ ok: true }`; on failure a JSON error object (`{ error: string }`) with an appropriate HTTP status (403, 400, 404, or 500)
+ */
 export async function POST(req: NextRequest) {
   if (!isAdminRequest(req)) return NextResponse.json({ error: 'forbidden' }, { status: 403 });
   const tenantSlug = getTenant();

@@ -4,6 +4,14 @@ import { getTenant } from '@/lib/tenant';
 import { findTenantBySlug } from '@/services/jwks';
 import { createPendingAuthRequest, findClient, serializeParams } from '@/services/authz';
 
+/**
+ * Build a minimal HTML NextResponse containing the provided HTML body.
+ *
+ * @param body - HTML content inserted into the <body> of the document
+ * @param status - HTTP status code for the response (defaults to 200)
+ * @param headers - Additional response headers to merge; `Content-Type` is set to `text/html; charset=utf-8` and preserved
+ * @returns A NextResponse whose body is a complete HTML document with the given content and headers applied
+ */
 function html(body: string, status = 200, headers?: HeadersInit) {
   return new NextResponse(
     `<!doctype html><html lang="en"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/><title>Authorize</title><style>body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,Noto Sans,sans-serif;padding:24px;max-width:720px;margin:0 auto}header{margin-bottom:16px}code{background:#f5f5f5;border-radius:4px;padding:2px 4px}</style></head><body>${body}</body></html>`,
@@ -36,6 +44,18 @@ const authorizeQuerySchema = z.object({
   code_challenge_method: z.enum(['S256', 'plain']).optional(),
 });
 
+/**
+ * Handle OpenID Connect authorization GET requests for the /authorize endpoint.
+ *
+ * Validates the authorization request query, resolves tenant and client, enforces the registered redirect URI,
+ * optionally records PKCE data, creates a pending authorization request, and returns either an OIDC error JSON
+ * response for invalid requests or an HTML authorization page that initiates magic-link and Server-Sent Events (SSE)
+ * flows. The HTML response includes a nonce-based Content-Security-Policy header.
+ *
+ * @param req - The incoming Next.js request containing the authorization query parameters
+ * @returns A NextResponse containing either an OIDC error JSON payload with an appropriate HTTP status or an HTML
+ * authorization page with a CSP header that drives the magic-link and consent flows
+ */
 export async function GET(req: NextRequest) {
   const tenantSlug = getTenant();
   if (!tenantSlug) return NextResponse.json({ error: 'missing tenant' }, { status: 400 });

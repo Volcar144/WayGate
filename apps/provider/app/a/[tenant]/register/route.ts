@@ -17,6 +17,20 @@ const schema = z.object({
   token_endpoint_auth_method: z.enum(['client_secret_basic', 'client_secret_post', 'none']).optional(),
 });
 
+/**
+ * Register a new OAuth/OpenID Connect client for the resolved tenant and return its credentials.
+ *
+ * @param req - Incoming Next.js request containing the registration JSON body
+ * @returns A JSON HTTP response with the created client's credentials and metadata:
+ * - `client_id`: the generated client identifier
+ * - `client_secret`: the generated client secret, `undefined` when no secret is issued
+ * - `client_name`: the client's display name
+ * - `redirect_uris`: the registered redirect URIs
+ * - `grant_types`: the allowed grant types
+ * - `token_endpoint_auth_method`: the token endpoint auth method
+ *
+ * Error responses are returned for a missing or unknown tenant, rate limiting, invalid JSON, or invalid parameters.
+ */
 export async function POST(req: NextRequest) {
   const tenantSlug = getTenant();
   if (!tenantSlug) return error(400, { error: 'invalid_request', error_description: 'missing tenant' });

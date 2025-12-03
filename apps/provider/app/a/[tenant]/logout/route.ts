@@ -8,6 +8,12 @@ export const runtime = 'nodejs';
 
 function json(status: number, body: any) { return NextResponse.json(body, { status }); }
 
+/**
+ * Handles logout requests by revoking refresh tokens and expiring the associated session for the current tenant.
+ *
+ * @param req - Incoming request whose body may be JSON or form-encoded and must include either `refresh_token` or `session_id`
+ * @returns A JSON response: `{"ok": true}` on successful logout; otherwise an error object with `error` and optional `error_description` (examples: `invalid_request`, `invalid_session`, `invalid_refresh_token`, `unknown tenant`, `missing tenant`, `server_error`)
+ */
 export async function POST(req: NextRequest) {
   const tenantSlug = getTenant();
   if (!tenantSlug) return json(400, { error: 'invalid_request', error_description: 'missing tenant' });

@@ -1,6 +1,16 @@
 import * as Sentry from '@sentry/nextjs';
 import { env } from './src/env';
 
+/**
+ * Initialize Sentry for the Edge runtime when a DSN is configured.
+ *
+ * Sets up a minimal Sentry configuration suitable for Edge environments and installs a
+ * beforeSend hook that scrubs sensitive data from events. The scrubber redacts email-like
+ * strings and values for keys that resemble credentials (for example: token, secret,
+ * password, authorization, cookie) and applies sanitization to event.request, event.extra,
+ * event.contexts, event.breadcrumbs, and exception values when present. If SENTRY_DSN is
+ * not set, the function returns without initializing Sentry.
+ */
 export async function register() {
   if (!env.SENTRY_DSN) return;
   Sentry.init({

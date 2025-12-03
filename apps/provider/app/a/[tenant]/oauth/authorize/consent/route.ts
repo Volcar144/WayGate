@@ -7,6 +7,14 @@ import { SignJWT, importJWK } from 'jose';
 import { getIssuerURL } from '@/utils/issuer';
 import { randomBytes } from 'node:crypto';
 
+/**
+ * Handle an OAuth/OpenID Connect authorization completion by issuing an authorization code, optionally persisting user consent, producing an optional signed handoff token, and notifying listeners of the resulting redirect.
+ *
+ * The handler expects form fields `rid`, `deny`, and `remember`. It validates the pending request, may record consent when requested, creates a short-lived authorization code (and associated PKCE/nonce metadata), optionally signs a short-lived handoff JWT if a tenant private key is available, publishes a Server-Sent Event (`loginComplete`) with the redirect (and handoff), finalizes the pending request, and returns the redirect URL.
+ *
+ * @param req - The incoming NextRequest containing form data and client metadata (IP, user-agent)
+ * @returns On success, an object `{ redirect: string }` containing the redirect URI with the issued `code` and original `state`. On failure, an object `{ error: string }` is returned with HTTP 400 status describing the error (e.g., `missing tenant`, `expired_request`, `login_required`, `unknown tenant`, or `access_denied`).
+ */
 export async function POST(req: NextRequest) {
   const tenantSlug = getTenant();
   if (!tenantSlug) return NextResponse.json({ error: 'missing tenant' }, { status: 400 });

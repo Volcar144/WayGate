@@ -119,6 +119,12 @@ export async function createPendingAuthRequest(
   return req;
 }
 
+/**
+ * Retrieve a pending authorization request by its request ID.
+ *
+ * @param rid - The request ID to look up; may be `null` or `undefined`.
+ * @returns The matching `PendingAuthRequest` if present and not expired, `null` otherwise.
+ */
 export async function getPending(rid: string | null | undefined): Promise<PendingAuthRequest | null> {
   if (!rid) return null;
   const redis = await getRedis();
@@ -144,6 +150,13 @@ export async function getPending(rid: string | null | undefined): Promise<Pendin
   return req;
 }
 
+/**
+ * Associate a user ID with an existing pending authorization request.
+ *
+ * @param rid - The request identifier for the pending authorization request.
+ * @param userId - The user identifier to attach to the pending request.
+ * @returns The updated `PendingAuthRequest` when the request is found and updated, or `null` if no valid pending request exists.
+ */
 export async function setPendingUser(rid: string, userId: string): Promise<PendingAuthRequest | null> {
   const redis = await getRedis();
   if (redis) {
@@ -172,6 +185,12 @@ export async function setPendingUser(rid: string, userId: string): Promise<Pendi
   return req;
 }
 
+/**
+ * Mark a pending authorization request as completed and persist the update.
+ *
+ * @param rid - The pending request's identifier
+ * @returns The updated `PendingAuthRequest` if found and updated, `null` if not found or the stored entry could not be parsed
+ */
 export async function completePending(rid: string): Promise<PendingAuthRequest | null> {
   const redis = await getRedis();
   if (redis) {
@@ -211,6 +230,13 @@ export function unsubscribeSSE(rid: string, writer: WritableStreamDefaultWriter)
   sse.get(rid)?.delete(writer);
 }
 
+/**
+ * Publishes a server-sent event to all subscribers for a given request id.
+ *
+ * @param rid - The request identifier whose SSE subscribers should receive the event
+ * @param event - The SSE event name
+ * @param data - The event payload to deliver to subscribers
+ */
 export async function publishSSE(rid: string, event: string, data: any) {
   const redis = await getRedis();
   if (redis) {
@@ -260,6 +286,14 @@ export async function issueMagicToken(params: { tenantId: string; tenantSlug: st
   return mt;
 }
 
+/**
+ * Consumes a one-time magic token and returns its associated metadata.
+ *
+ * The token is removed or marked as used so it cannot be reused.
+ *
+ * @param token - The magic token string to consume
+ * @returns The consumed `MagicToken` if the token existed and was valid; `null` if the token does not exist, has already been used, or has expired
+ */
 export async function consumeMagicToken(token: string): Promise<MagicToken | null> {
   const redis = await getRedis();
   if (redis) {

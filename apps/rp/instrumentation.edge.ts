@@ -1,6 +1,12 @@
 import * as Sentry from '@sentry/nextjs';
 import { env } from './src/env';
 
+/**
+ * Initializes Sentry when a SENTRY_DSN is configured and registers a before-send hook that redacts sensitive data from events.
+ *
+ * When a DSN is present, configures Sentry with the current NODE_ENV (or "development") and a low tracesSampleRate.
+ * The beforeSend hook sanitizes event.request, event.extra, and event.contexts by redacting email addresses and values or keys related to `token`, `secret`, `password`, `authorization`, and `cookie` across strings, arrays, and objects.
+ */
 export async function register() {
   if (!env.SENTRY_DSN) return;
   Sentry.init({

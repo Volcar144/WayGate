@@ -6,6 +6,14 @@ import { isAdminRequest } from '@/utils/admin';
 
 export const runtime = 'nodejs';
 
+/**
+ * Export tenant audit records as JSON or CSV.
+ *
+ * Accepts query parameters: `format` ("json" or "csv", default "json"), `from` and `to` (ISO date strings to filter `createdAt`), and `limit` (integer clamped to 1–100000, default 10000).
+ * Responds with 403 if the request is not from an admin, 400 if the tenant is missing, or 404 if the tenant does not exist.
+ *
+ * @returns A Response containing the audit records serialized as JSON, or a CSV attachment named "audit.csv" when `format=csv`.
+ */
 export async function GET(req: NextRequest) {
   if (!isAdminRequest(req)) return new Response('forbidden', { status: 403 });
   const tenantSlug = getTenant();

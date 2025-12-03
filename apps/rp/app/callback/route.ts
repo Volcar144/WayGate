@@ -3,6 +3,15 @@ import { cookies } from 'next/headers';
 import { env } from '../../src/env';
 import { verifyIdToken, verifyAccessToken } from '../../src/waygate';
 
+/**
+ * Handle the OIDC callback: process query parameters, exchange the authorization code for tokens,
+ * verify ID and access tokens, create a session cookie, and redirect to the protected page.
+ *
+ * @param req - Incoming Next.js request containing OIDC callback query parameters (`code`, `state`, optional `error` and `error_description`)
+ * @returns A NextResponse containing either:
+ *   - a JSON error payload with an appropriate HTTP status for invalid requests or token verification failures, or
+ *   - a redirect to `/protected` after successful token exchange and session creation
+ */
 export async function GET(req: NextRequest) {
   const url = new URL(req.url);
   const error = url.searchParams.get('error');

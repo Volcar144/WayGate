@@ -6,6 +6,17 @@ import { isAdminRequest } from '@/utils/admin';
 
 export const runtime = 'nodejs';
 
+/**
+ * Revoke one or all JSON Web Keys (JWKs) for the tenant resolved from the request.
+ *
+ * If a JSON body with a `kid` field is provided, the key with that `kid` for the tenant is marked `retired`; otherwise all active keys for the tenant are marked `retired`. An audit record is created for the action including tenant id, request IP, and user-agent.
+ *
+ * @returns `{ ok: true }` on success; on failure the route responds with JSON error objects:
+ * - `{ error: 'forbidden' }` with status 403 when the requester is not an admin
+ * - `{ error: 'missing tenant' }` with status 400 when no tenant slug is available
+ * - `{ error: 'unknown tenant' }` with status 404 when the tenant cannot be found
+ * - `{ error: 'server_error' }` with status 500 on internal errors
+ */
 export async function POST(req: NextRequest) {
   if (!isAdminRequest(req)) return NextResponse.json({ error: 'forbidden' }, { status: 403 });
   const tenantSlug = getTenant();

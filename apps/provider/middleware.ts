@@ -3,6 +3,14 @@ import { NextResponse } from 'next/server';
 import { TENANT_HEADER, isLocalHost } from '@/lib/tenant';
 import { logger } from '@/utils/logger';
 
+/**
+ * Injects tenant and correlation headers into the downstream request, logs the request, and attaches security headers to the response.
+ *
+ * Extracts a tenant identifier from the pathname (/a/{tenant}/...) or from the `tenant` query parameter when the host is local; sets the TENANT_HEADER when present. Ensures an `x-request-id` header exists (reusing an incoming value or generating a new UUID), logs a request entry, and returns a NextResponse that continues processing with the modified request headers and a set of baseline security headers (CSP, HSTS in production, and related protections).
+ *
+ * @param req - The incoming NextRequest to inspect and augment
+ * @returns A NextResponse that continues the middleware chain with tenant and `x-request-id` propagated to the downstream request and security headers applied to the response
+ */
 export function middleware(req: NextRequest) {
   const url = req.nextUrl.clone();
   const host = req.headers.get('host');
