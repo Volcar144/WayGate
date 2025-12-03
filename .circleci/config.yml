@@ -6,7 +6,6 @@ jobs:
       - image: cimg/node:20.11-browsers
         environment:
           CI: "true"
-          SUPABASE_DATABASE_URL: postgresql://postgres:postgres@postgres:5432/waygate
           REDIS_HOST: redis
           REDIS_PORT: "6379"
           SMTP_HOST: mailhog
@@ -26,6 +25,13 @@ jobs:
         name: mailhog
     steps:
       - checkout
+
+      - run:
+          name: Show DB environment variables
+          command: |
+            echo "DATABASE_URL=${DATABASE_URL:-not set}"
+            echo "DIRECT_URL=${DIRECT_URL:-not set}"
+            echo "SUPABASE_DATABASE_URL=${SUPABASE_DATABASE_URL:-not set}"
 
       - run:
           name: Enable corepack and pnpm
@@ -53,10 +59,8 @@ jobs:
             - ~/.pnpm-store
 
       - run:
-          name: Install Playwright browsers and OS deps
-          command: |
-            export DEBIAN_FRONTEND=noninteractive
-            pnpm e2e:install
+          name: Install Playwright browsers
+          command: pnpm exec playwright install
 
       - run:
           name: Run E2E tests (Playwright)

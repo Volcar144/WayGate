@@ -51,12 +51,14 @@ export default async function globalSetup(_config: FullConfig) {
     ]);
   } else {
     // CI: service containers are provided by the executor. Wait for them by hostname.
-    // Derive DB host/port from the SUPABASE_DATABASE_URL if provided
-    const SUPABASE_DATABASE_URL = process.env.SUPABASE_DATABASE_URL || 'postgresql://postgres:postgres@postgres:5432/waygate';
+    // Derive DB host/port from any provided DB env var
+    const DATABASE_URL_CI =
+      process.env.SUPABASE_DATABASE_URL || process.env.DATABASE_URL || process.env.DIRECT_URL ||
+      'postgresql://postgres:postgres@postgres:5432/waygate';
     let dbHost = 'postgres';
     let dbPort = 5432;
     try {
-      const u = new URL(SUPABASE_DATABASE_URL);
+      const u = new URL(DATABASE_URL_CI);
       dbHost = u.hostname || dbHost;
       dbPort = u.port ? Number(u.port) : dbPort;
     } catch {}
@@ -78,9 +80,11 @@ export default async function globalSetup(_config: FullConfig) {
   const providerDir = path.join(repoRoot, 'apps', 'provider');
 
   // Apply DB migrations and seed tenant/client
-  const SUPABASE_DATABASE_URL = process.env.SUPABASE_DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/waygate';
+  const DATABASE_URL =
+    process.env.SUPABASE_DATABASE_URL || process.env.DATABASE_URL || process.env.DIRECT_URL ||
+    'postgresql://postgres:postgres@localhost:5432/waygate';
   const env = {
-    SUPABASE_DATABASE_URL,
+    SUPABASE_DATABASE_URL: DATABASE_URL,
     ENCRYPTION_KEY: process.env.ENCRYPTION_KEY || 'dev_encryption_key_change_me_please_32_chars',
     SESSION_SECRET: process.env.SESSION_SECRET || 'dev_session_secret_change_me_please_32_chars',
   } as NodeJS.ProcessEnv;
