@@ -256,6 +256,21 @@ export async function GET(req: NextRequest) {
     if (data.redirect) window.location.href = data.redirect;
   });
 
+  // Provider chooser
+  const providerBtns = document.querySelectorAll('button.provider');
+  providerBtns.forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const p = btn.getAttribute('data-provider');
+      if (!p) return;
+      btn.setAttribute('disabled', 'true');
+      btn.innerHTML = '<span style="display:inline-flex;gap:8px;align-items:center"><span class="spinner" aria-hidden="true"></span><span>Redirecting…</span></span>';
+      const url = new URL('../external/start', window.location.href);
+      url.searchParams.set('provider', p);
+      url.searchParams.set('rid', '${pending.rid}');
+      window.location.href = url.toString();
+    });
+  });
+
   // Enchanted link via SSE
   const ev = new EventSource('./sse?rid=${pending.rid}');
   ev.addEventListener('loginComplete', (e) => {
