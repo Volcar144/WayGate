@@ -16,14 +16,16 @@ model Tenant {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  users         User[]
-  clients       Client[]
-  keys          JwkKey[]
-  audits        Audit[]
-  authCodes     AuthCode[]
-  sessions      Session[]
-  refreshTokens RefreshToken[]
-  consents      Consent[]
+  users               User[]
+  clients             Client[]
+  keys                JwkKey[]
+  audits              Audit[]
+  authCodes           AuthCode[]
+  sessions            Session[]
+  refreshTokens       RefreshToken[]
+  consents            Consent[]
+  identityProviders   IdentityProvider[]
+  externalIdentities  ExternalIdentity[]
 }
 
 model User {
@@ -34,12 +36,13 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  tenant      Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  credentials Credential[]
-  sessions    Session[]
-  consents    Consent[]
-  audits      Audit[]
-  authCodes   AuthCode[]
+  tenant              Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  credentials         Credential[]
+  sessions            Session[]
+  consents            Consent[]
+  audits              Audit[]
+  authCodes           AuthCode[]
+  externalIdentities  ExternalIdentity[]
 
   @@unique([tenantId, email])
   @@index([tenantId])
@@ -183,4 +186,57 @@ model Audit {
   user   User?  @relation(fields: [userId], references: [id])
 
   @@index([tenantId])
+}
+
+enum IdentityProviderType {
+  google
+  microsoft
+  github
+  oidc_generic
+}
+
+enum ProviderStatus {
+  enabled
+  disabled
+}
+
+model IdentityProvider {
+  id              String                @id @default(uuid()) @db.Uuid
+  tenantId        String                @db.Uuid
+  type            IdentityProviderType
+  clientId        String
+  clientSecretEnc String
+  issuer          String
+  scopes          String[]              @default(["openid", "email", "profile"])
+  status          ProviderStatus        @default(disabled)
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt
+
+  tenant          Tenant                @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  identities      ExternalIdentity[]
+
+  @@unique([tenantId, type])
+  @@index([tenantId])
+}
+
+model ExternalIdentity {
+  id          String           @id @default(uuid()) @db.Uuid
+  tenantId    String           @db.Uuid
+  userId      String           @db.Uuid
+  providerId  String           @db.Uuid
+  subject     String
+  email       String?
+  claims      Json
+  lastLoginAt DateTime
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  tenant   Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user     User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  provider IdentityProvider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+
+  @@unique([providerId, subject])
+  @@index([tenantId])
+  @@index([userId])
+  @@index([email])
 }
