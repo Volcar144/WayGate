@@ -1,6 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 import crypto from 'node:crypto';
-import { ensureActiveKeyForTenant } from '../src/services/jwks';
+import { ensureActiveKeyForTenant, rotateKeysForTenant } from '../src/services/jwks';
 
 const prisma = new PrismaClient();
 
@@ -17,11 +17,25 @@ async function main() {
     },
   });
 
-  // Ensure there is at least one active signing key for the tenant
-  await ensureActiveKeyForTenant(tenant.id);
+  // Key management
+  const rotate = (process.env.SEED_ROTATE_KEYS || '').toLowerCase();
+  if (rotate === '1' || rotate === 'true' || rotate === 'yes') {
+    await rotateKeysForTenant(tenant.id);
+  } else {
+    // Ensure there is at least one active signing key for the tenant
+    await ensureActiveKeyForTenant(tenant.id);
+  }
 
-  const clientId = 'example-client';
-  const clientSecret = crypto.randomBytes(24).toString('base64url');
+  // Client
+  const clientId = process.env.SEED_CLIENT_ID || 'example-client';
+  const clientSecret = process.env.SEED_CLIENT_SECRET || crypto.randomBytes(24).toString('base64url');
+  const clientName = process.env.SEED_CLIENT_NAME || 'Example App';
+  const redirectUris = (process.env.SEED_REDIRECT_URIS || 'http://localhost:3001/callback')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const firstPartyEnv = (process.env.SEED_FIRST_PARTY || 'true').toLowerCase();
+  const firstParty = firstPartyEnv === '1' || firstPartyEnv === 'true' || firstPartyEnv === 'yes';
 
   await prisma.client.upsert({
     where: {
@@ -30,17 +44,32 @@ async function main() {
         clientId,
       },
     },
-    update: {},
+    update: {
+      name: clientName,
+      redirectUris,
+      grantTypes: ['authorization_code', 'refresh_token'],
+      firstParty,
+    },
     create: {
       tenantId: tenant.id,
       clientId,
       clientSecret,
-      name: 'Example App',
-      redirectUris: ['http://localhost:3001/callback'],
+      name: clientName,
+      redirectUris,
       grantTypes: ['authorization_code', 'refresh_token'],
-      firstParty: true,
+      firstParty,
     },
   });
+
+  // Optional admin user
+  const adminEmail = (process.env.SEED_ADMIN_EMAIL || '').toLowerCase();
+  if (adminEmail) {
+    await prisma.user.upsert({
+      where: { tenantId_email: { tenantId: tenant.id, email: adminEmail } },
+      update: {},
+      create: { tenantId: tenant.id, email: adminEmail, name: 'Administrator' },
+    });
+  }
 
   console.log('Seeded tenant:', tenant.slug);
   console.log('Client ID:', clientId);

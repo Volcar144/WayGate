@@ -20,6 +20,10 @@ apps/*/.env
 # Prisma
 apps/provider/prisma/*.db
 
+# Test reports
+playwright-report/
+test-results/
+
 # Mac
 .DS_Store
 

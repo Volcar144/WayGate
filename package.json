@@ -10,7 +10,10 @@
     "format": "prettier --write .",
     "e2e": "playwright test",
     "e2e:ui": "playwright test --ui",
-    "e2e:install": "playwright install --with-deps"
+    "e2e:install": "playwright install --with-deps",
+    "smoke:prod": "playwright test -c playwright.smoke.config.ts",
+    "deploy:prod": "node ./scripts/deploy.mjs",
+    "rotate-keys": "pnpm --filter provider tsx apps/provider/scripts/rotate-keys.ts"
   },
   "devDependencies": {
     "@playwright/test": "^1.48.2",
