@@ -18,10 +18,12 @@ export async function POST(_req: NextRequest) {
           });
         }
       } catch (e) {
+        try { const Sentry = require('@sentry/nextjs'); Sentry.captureException(e); } catch {}
         console.error('Failed to notify provider logout', e);
       }
     }
   } catch (e) {
+    try { const Sentry = require('@sentry/nextjs'); Sentry.captureException(e); } catch {}
     console.error('Error during RP logout', e);
   }
   cookies().delete('rp_session');

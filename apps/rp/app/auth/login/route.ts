@@ -15,9 +15,10 @@ export async function GET() {
     nonce,
     created_at: Date.now(),
   };
+  const isSecure = process.env.NODE_ENV === 'production';
   cookies().set('rp_oidc', JSON.stringify(cookiePayload), {
     httpOnly: true,
-    secure: false,
+    secure: isSecure,
     sameSite: 'lax',
     path: '/',
     maxAge: 10 * 60, // 10 minutes

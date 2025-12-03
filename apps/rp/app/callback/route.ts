@@ -53,9 +53,10 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'invalid_token' }, { status: 400 });
   }
 
+  const isSecure = process.env.NODE_ENV === 'production';
   cookies().set('rp_session', JSON.stringify({ id_token: idToken, access_token: accessToken, refresh_token: refreshToken ?? null, created_at: Date.now() }), {
     httpOnly: true,
-    secure: false,
+    secure: isSecure,
     sameSite: 'lax',
     path: '/',
     maxAge: 30 * 24 * 60 * 60,

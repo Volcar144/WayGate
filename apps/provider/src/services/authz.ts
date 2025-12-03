@@ -129,6 +129,7 @@ export async function getPending(rid: string | null | undefined): Promise<Pendin
       const req = JSON.parse(raw) as PendingAuthRequest;
       return req;
     } catch (e) {
+      try { const Sentry = require('@sentry/nextjs'); Sentry.captureException(e); } catch {}
       console.error('Failed to parse pending request from Redis', e);
       return null;
     }
@@ -153,6 +154,7 @@ export async function setPendingUser(rid: string, userId: string): Promise<Pendi
     try {
       req = JSON.parse(raw) as PendingAuthRequest;
     } catch (e) {
+      try { const Sentry = require('@sentry/nextjs'); Sentry.captureException(e); } catch {}
       console.error('Failed to parse pending request from Redis', e);
       return null;
     }
@@ -180,6 +182,7 @@ export async function completePending(rid: string): Promise<PendingAuthRequest |
     try {
       req = JSON.parse(raw) as PendingAuthRequest;
     } catch (e) {
+      try { const Sentry = require('@sentry/nextjs'); Sentry.captureException(e); } catch {}
       console.error('Failed to parse pending request from Redis', e);
       return null;
     }
@@ -224,6 +227,7 @@ export async function publishSSE(rid: string, event: string, data: any) {
       try {
         await w.write(new TextEncoder().encode(line));
       } catch (e) {
+        try { const Sentry = require('@sentry/nextjs'); Sentry.captureException(e); } catch {}
         console.error('SSE write failed', e);
       }
     })
@@ -274,6 +278,7 @@ export async function consumeMagicToken(token: string): Promise<MagicToken | nul
         const mt = JSON.parse(raw) as MagicToken;
         return mt;
       } catch (err) {
+        try { const Sentry = require('@sentry/nextjs'); Sentry.captureException(err); } catch {}
         console.error('Failed to consume magic token from Redis', err);
         return null;
       }

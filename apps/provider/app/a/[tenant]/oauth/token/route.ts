@@ -5,7 +5,7 @@ import { findTenantBySlug } from '@/services/jwks';
 import { prisma } from '@/lib/prisma';
 import { getAuthCodeMeta, consumeAuthCodeMeta, newToken } from '@/services/authz';
 import { signAccessToken, signIdToken } from '@/services/tokens';
-import { buildTokenRateLimitKeys, rateLimitTake } from '@/services/ratelimit';
+import { buildTokenRateLimitKeys, rateLimitTake, getTokenRateLimitConfig } from '@/services/ratelimit';
 import { createHash } from 'node:crypto';
 
 export const runtime = 'nodejs';
@@ -54,15 +54,16 @@ export async function POST(req: NextRequest) {
   const clientSecret = auth.clientSecret || clientSecretParam;
 
   const ip = (req.ip as string | null) || req.headers.get('x-forwarded-for') || 'unknown';
+  const rlCfg = getTokenRateLimitConfig(tenantSlug, clientId);
   const rlKeys = buildTokenRateLimitKeys({ tenant: tenantSlug, clientId, ip });
-  const ipLimit = await rateLimitTake(rlKeys.byIp, 60, 60 * 1000);
+  const ipLimit = await rateLimitTake(rlKeys.byIp, rlCfg.ipLimit, rlCfg.windowMs);
   if (!ipLimit.allowed) return NextResponse.json({ error: 'rate_limited' }, { status: 429 });
 
   if (!clientId) return oidcError('invalid_client', 'missing client_id');
   const client = await (prisma as any).client.findUnique({ where: { tenantId_clientId: { tenantId: tenant.id, clientId } } });
   if (!client) return oidcError('unauthorized_client', 'client not found');
 
-  const clientLimit = await rateLimitTake(rlKeys.byClient, 120, 60 * 1000);
+  const clientLimit = await rateLimitTake(rlKeys.byClient, rlCfg.clientLimit, rlCfg.windowMs);
   if (!clientLimit.allowed) return NextResponse.json({ error: 'rate_limited' }, { status: 429 });
 
   // For confidential clients require authentication
@@ -105,6 +106,7 @@ export async function POST(req: NextRequest) {
 
     // Single-use: delete code
     await (prisma as any).authCode.delete({ where: { code } }).catch((e: any) => {
+      try { const Sentry = require('@sentry/nextjs'); Sentry.captureException(e); } catch {}
       console.error('Failed to delete auth code', e);
     });
     consumeAuthCodeMeta(code);

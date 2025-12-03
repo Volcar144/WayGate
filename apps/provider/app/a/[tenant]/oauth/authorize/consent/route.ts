@@ -63,6 +63,7 @@ export async function POST(req: NextRequest) {
       authTime: Math.floor(Date.now() / 1000),
     });
   } catch (e) {
+    try { const Sentry = require('@sentry/nextjs'); Sentry.captureException(e); } catch {}
     console.error('Failed to record auth code metadata', e);
   }
 

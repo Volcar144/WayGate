@@ -52,9 +52,10 @@ export async function getSession(): Promise<{
             refresh_token: t.refresh_token || sess.refresh_token,
             created_at: Date.now(),
           };
+          const isSecure = process.env.NODE_ENV === 'production';
           cookies().set('rp_session', JSON.stringify(updated), {
             httpOnly: true,
-            secure: false,
+            secure: isSecure,
             sameSite: 'lax',
             path: '/',
             maxAge: 30 * 24 * 60 * 60,

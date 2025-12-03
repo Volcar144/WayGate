@@ -4,6 +4,13 @@ This monorepo contains:
 - Provider: a multi-tenant OpenID Provider (apps/provider)
 - RP: a demo Next.js relying party (apps/rp) that authenticates against the provider using Authorization Code + PKCE, verifies tokens with JWKS, enforces auth on a protected route, and supports sign-out.
 
+Observability & Security
+- Sentry: Set SENTRY_DSN in apps/provider/.env and/or apps/rp/.env to enable error reporting. DB queries are sent as breadcrumbs (PII redacted).
+- Rate limits: Configure RL_* env vars (see apps/provider/src/env.ts) and RL_OVERRIDES_JSON for per-tenant/client caps.
+- Health endpoints (provider): /healthz and /readyz.
+- Admin runbook and endpoints: see docs/runbook.md. Admin API requires x-admin-secret header matching ADMIN_SECRET env.
+- Security headers: CSP and other headers are enabled via middleware. Cookies are HTTP‑only and Secure in production.
+
 Local development (end-to-end)
 
 Prerequisites

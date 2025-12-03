@@ -29,6 +29,7 @@ export async function sendMagicEmail(to: string, magicUrl: string): Promise<Send
     });
     return { ok: true };
   } catch (e: any) {
+    try { const Sentry = require('@sentry/nextjs'); Sentry.captureException(e); } catch {}
     console.error('Failed to send magic email', e);
     return { ok: false, error: e?.message || 'send_failed' };
   }

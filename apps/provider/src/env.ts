@@ -22,6 +22,18 @@ const serverEnvSchema = z.object({
   REDIS_PASSWORD: z.string().optional(),
   ENCRYPTION_KEY: z.string().min(32, 'ENCRYPTION_KEY should be at least 32 characters').optional(),
   SESSION_SECRET: z.string().min(32, 'SESSION_SECRET should be at least 32 characters'),
+  // Observability
+  SENTRY_DSN: z.string().url().optional(),
+  // Admin
+  ADMIN_SECRET: z.string().optional(),
+  // Rate limit defaults (per window)
+  RL_TOKEN_IP_LIMIT: z.string().regex(/^\d+$/).transform(Number).optional(),
+  RL_TOKEN_CLIENT_LIMIT: z.string().regex(/^\d+$/).transform(Number).optional(),
+  RL_TOKEN_WINDOW_SEC: z.string().regex(/^\d+$/).transform(Number).optional(),
+  RL_REGISTER_IP_LIMIT: z.string().regex(/^\d+$/).transform(Number).optional(),
+  RL_REGISTER_WINDOW_SEC: z.string().regex(/^\d+$/).transform(Number).optional(),
+  // JSON overrides structure: { tenants: { [slug]: { token?: { ip?: number, client?: number, windowSec?: number }, register?: { ip?: number, windowSec?: number }, clients?: { [clientId]: { client?: number, windowSec?: number } } } } }
+  RL_OVERRIDES_JSON: z.string().optional(),
 });
 
 const _env = serverEnvSchema.safeParse(process.env);

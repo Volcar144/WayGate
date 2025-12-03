@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { getTenant } from '@/lib/tenant';
 import { findTenantBySlug } from '@/services/jwks';
 import { prisma } from '@/lib/prisma';
-import { buildRegisterRateLimitKeys, rateLimitTake } from '@/services/ratelimit';
+import { buildRegisterRateLimitKeys, rateLimitTake, getRegisterRateLimitConfig } from '@/services/ratelimit';
 import { randomBytes } from 'node:crypto';
 
 export const runtime = 'nodejs';
@@ -25,7 +25,8 @@ export async function POST(req: NextRequest) {
 
   const ip = (req.ip as string | null) || req.headers.get('x-forwarded-for') || 'unknown';
   const keys = buildRegisterRateLimitKeys({ tenant: tenantSlug, ip });
-  const rl = await rateLimitTake(keys.byIp, 10, 60 * 60 * 1000); // 10 per hour
+  const cfg = getRegisterRateLimitConfig(tenantSlug);
+  const rl = await rateLimitTake(keys.byIp, cfg.ipLimit, cfg.windowMs);
   if (!rl.allowed) return error(429, { error: 'rate_limited' });
 
   let body: any;
