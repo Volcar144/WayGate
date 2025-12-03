@@ -38,22 +38,56 @@ function run(cmd: string, args: string[], opts: { cwd?: string; env?: NodeJS.Pro
 }
 
 export default async function globalSetup(_config: FullConfig) {
-  // Start infrastructure
-  await run('docker', ['compose', 'up', '-d', 'postgres', 'redis', 'mailpit']);
-  await Promise.all([
-    waitForPort('127.0.0.1', 5432, 120_000),
-    waitForPort('127.0.0.1', 6379, 120_000),
-    waitForPort('127.0.0.1', 1025, 120_000),
-    waitForPort('127.0.0.1', 8025, 120_000),
-  ]);
+  const isCI = !!process.env.CI;
+
+  if (!isCI) {
+    // Local dev: start infra via docker compose and wait on localhost
+    await run('docker', ['compose', 'up', '-d', 'postgres', 'redis', 'mailpit']);
+    await Promise.all([
+      waitForPort('127.0.0.1', 5432, 120_000),
+      waitForPort('127.0.0.1', 6379, 120_000),
+      waitForPort('127.0.0.1', 1025, 120_000),
+      waitForPort('127.0.0.1', 8025, 120_000),
+    ]);
+  } else {
+    // CI: service containers are provided by the executor. Wait for them by hostname.
+    // Derive DB host/port from any provided DB env var
+    const DATABASE_URL_CI =
+      process.env.SUPABASE_DATABASE_URL || process.env.DATABASE_URL || process.env.DIRECT_URL ||
+      'postgresql://postgres:postgres@postgres:5432/waygate';
+    let dbHost = 'postgres';
+    let dbPort = 5432;
+    try {
+      const u = new URL(DATABASE_URL_CI);
+      dbHost = u.hostname || dbHost;
+      dbPort = u.port ? Number(u.port) : dbPort;
+    } catch {}
+
+    const redisHost = process.env.REDIS_HOST || 'redis';
+    const redisPort = Number(process.env.REDIS_PORT || '6379');
+    const smtpHost = process.env.SMTP_HOST || 'mailhog';
+    const smtpPort = Number(process.env.SMTP_PORT || '1025');
+
+    await Promise.all([
+      waitForPort(dbHost, dbPort, 120_000),
+      waitForPort(redisHost, redisPort, 120_000),
+      waitForPort(smtpHost, smtpPort, 120_000),
+      waitForPort(smtpHost, 8025, 120_000),
+    ]);
+  }
 
   const repoRoot = path.join(__dirname, '..');
   const providerDir = path.join(repoRoot, 'apps', 'provider');
 
   // Apply DB migrations and seed tenant/client
-  const SUPABASE_DATABASE_URL = process.env.SUPABASE_DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/waygate';
+  const DEFAULT_DB_URL = isCI
+    ? 'postgresql://postgres:postgres@postgres:5432/waygate'
+    : 'postgresql://postgres:postgres@localhost:5432/waygate';
+  const DATABASE_URL =
+    process.env.SUPABASE_DATABASE_URL || process.env.DATABASE_URL || process.env.DIRECT_URL ||
+    DEFAULT_DB_URL;
   const env = {
-    SUPABASE_DATABASE_URL,
+    SUPABASE_DATABASE_URL: DATABASE_URL,
     ENCRYPTION_KEY: process.env.ENCRYPTION_KEY || 'dev_encryption_key_change_me_please_32_chars',
     SESSION_SECRET: process.env.SESSION_SECRET || 'dev_session_secret_change_me_please_32_chars',
   } as NodeJS.ProcessEnv;

@@ -10,5 +10,6 @@ function run(cmd: string, args: string[]) {
 }
 
 export default async function globalTeardown(_config: FullConfig) {
+  if (process.env.CI) return;
   await run('docker', ['compose', 'down', '-v']);
 }
