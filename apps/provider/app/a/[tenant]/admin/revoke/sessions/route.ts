@@ -13,7 +13,11 @@ export async function POST(req: NextRequest) {
   const tenant = await findTenantBySlug(tenantSlug);
   if (!tenant) return NextResponse.json({ error: 'unknown tenant' }, { status: 404 });
   let payload: any = {};
-  try { payload = await req.json(); } catch {}
+  try {
+    payload = await req.json();
+  } catch (e) {
+    // Empty/invalid body is acceptable (treat as revoke all sessions)
+  }
   const userId: string | undefined = payload?.user_id;
 
   try {
@@ -22,8 +26,10 @@ export async function POST(req: NextRequest) {
       const sessions = await (prisma as any).session.findMany({ where: { tenantId: tenant.id, userId } });
       const ids = sessions.map((s: any) => s.id);
       if (ids.length > 0) {
-        await (prisma as any).refreshToken.updateMany({ where: { sessionId: { in: ids } }, data: { revoked: true } });
-        await (prisma as any).session.updateMany({ where: { id: { in: ids } }, data: { expiresAt: new Date() } });
+        await (prisma as any).$transaction([
+          (prisma as any).refreshToken.updateMany({ where: { sessionId: { in: ids } }, data: { revoked: true } }),
+          (prisma as any).session.updateMany({ where: { id: { in: ids } }, data: { expiresAt: new Date() } }),
+        ]);
       }
       await (prisma as any).audit.create({ data: { tenantId: tenant.id, userId, action: 'admin.revoke_user_sessions', ip: (req.ip as any) || null, userAgent: req.headers.get('user-agent') || null } });
     } else {
@@ -31,8 +37,10 @@ export async function POST(req: NextRequest) {
       const sessions = await (prisma as any).session.findMany({ where: { tenantId: tenant.id } });
       const ids = sessions.map((s: any) => s.id);
       if (ids.length > 0) {
-        await (prisma as any).refreshToken.updateMany({ where: { sessionId: { in: ids } }, data: { revoked: true } });
-        await (prisma as any).session.updateMany({ where: { id: { in: ids } }, data: { expiresAt: new Date() } });
+        await (prisma as any).$transaction([
+          (prisma as any).refreshToken.updateMany({ where: { sessionId: { in: ids } }, data: { revoked: true } }),
+          (prisma as any).session.updateMany({ where: { id: { in: ids } }, data: { expiresAt: new Date() } }),
+        ]);
       }
       await (prisma as any).audit.create({ data: { tenantId: tenant.id, userId: null, action: 'admin.revoke_all_sessions', ip: (req.ip as any) || null, userAgent: req.headers.get('user-agent') || null } });
     }

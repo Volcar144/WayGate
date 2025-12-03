@@ -1,3 +1,4 @@
+import * as Sentry from '@sentry/nextjs';
 import { NextRequest, NextResponse } from 'next/server';
 import { getTenant } from '@/lib/tenant';
 import { findTenantBySlug } from '@/services/jwks';
@@ -15,12 +16,12 @@ export async function POST(req: NextRequest) {
 
   // Try to parse JSON, fallback to form data
   let payload: any = null;
-  try { payload = await req.json(); } catch (e) { try { const Sentry = require('@sentry/nextjs'); Sentry.captureException(e); } catch {} ; console.error('Failed to parse JSON payload for logout', e); }
+  try { payload = await req.json(); } catch (e) { Sentry?.captureException?.(e); console.error('Failed to parse JSON payload for logout', e); }
   if (!payload) {
     try {
       const fd = await req.formData();
       payload = Object.fromEntries(Array.from(fd.entries()) as [string, string][]);
-    } catch (e) { try { const Sentry = require('@sentry/nextjs'); Sentry.captureException(e); } catch {} ; console.error('Failed to parse form data payload for logout', e); }
+    } catch (e) { Sentry?.captureException?.(e); console.error('Failed to parse form data payload for logout', e); }
   }
 
   const refreshToken = payload?.refresh_token as string | undefined;
@@ -49,7 +50,10 @@ export async function POST(req: NextRequest) {
 
     return json(200, { ok: true });
   } catch (e) {
-    try { const Sentry = require('@sentry/nextjs'); Sentry.captureException(e); } catch {}
+    Sentry?.captureException?.(e, {
+      tags: { tenant: tenantSlug },
+      extra: { hasRefreshToken: !!refreshToken, hasSessionId: !!sessionId },
+    } as any);
     return json(500, { error: 'server_error' });
   }
 }

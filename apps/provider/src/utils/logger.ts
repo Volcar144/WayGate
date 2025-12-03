@@ -28,7 +28,7 @@ function log(level: Level, msg: string, meta?: Record<string, any>) {
     console[level === 'error' ? 'error' : level === 'warn' ? 'warn' : 'log'](JSON.stringify(payload));
   } catch {
     // eslint-disable-next-line no-console
-    console.log(`[${level}]`, msg);
+    console.log(`[${level}]`, msg, meta);
   }
 }
 

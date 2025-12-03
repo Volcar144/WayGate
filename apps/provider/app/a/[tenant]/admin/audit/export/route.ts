@@ -17,11 +17,17 @@ export async function GET(req: NextRequest) {
   const format = (url.searchParams.get('format') || 'json').toLowerCase();
   const from = url.searchParams.get('from');
   const to = url.searchParams.get('to');
+  const limitParam = url.searchParams.get('limit');
+  let take = 10000;
+  if (limitParam) {
+    const n = parseInt(limitParam, 10);
+    if (!Number.isNaN(n)) take = Math.min(Math.max(1, n), 100000);
+  }
   const where: any = { tenantId: tenant.id };
   if (from) where.createdAt = { ...(where.createdAt || {}), gte: new Date(from) };
   if (to) where.createdAt = { ...(where.createdAt || {}), lte: new Date(to) };
 
-  const rows = (await (prisma as any).audit.findMany({ where, orderBy: { id: 'asc' } })) as any[];
+  const rows = (await (prisma as any).audit.findMany({ where, orderBy: { id: 'asc' }, take })) as any[];
 
   if (format === 'csv') {
     const header = 'id,tenantId,userId,action,ip,userAgent,createdAt\n';

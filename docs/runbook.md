@@ -9,7 +9,9 @@ Scope: Provider and RP services in this monorepo.
     - Call POST /a/{tenant}/admin/keys/revoke with header x-admin-secret and JSON { "kid": "<kid>" } to retire a specific key, or without body to retire all active keys for the tenant.
   - Rotate keys: Ensure a new staged/active key is created out-of-band and promoted to active; restart deploy if necessary.
   - Invalidate sessions: Call POST /a/{tenant}/admin/revoke/sessions to revoke all active refresh tokens and expire sessions.
-  - Increase rate‑limits temporarily for token refresh denial-of-service resilience if needed via env RL_* overrides.
+  - Adjust rate‑limits via env RL_* overrides:
+    - To handle a benign refresh "stampede" after rotation, temporarily raise global ceilings.
+    - To throttle suspected abuse, lower per‑actor (IP/client) limits using RL_OVERRIDES_JSON.
 - Follow-up:
   - Audit: Export audit logs via GET /a/{tenant}/admin/audit/export?from=...&to=...&format=csv and investigate access.
   - Update clients: Communicate KID changes and cache invalidation guidance.

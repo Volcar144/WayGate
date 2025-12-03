@@ -38,6 +38,13 @@ export async function register() {
         if (event.request) event.request = scrub(event.request);
         if (event.extra) event.extra = scrub(event.extra);
         if (event.contexts) event.contexts = scrub(event.contexts);
+        if (event.breadcrumbs) event.breadcrumbs = scrub(event.breadcrumbs);
+        if (event.exception?.values) {
+          event.exception.values = event.exception.values.map((ex) => ({
+            ...ex,
+            value: typeof ex.value === 'string' ? scrub(ex.value) : ex.value,
+          }));
+        }
       } catch {}
       return event;
     },

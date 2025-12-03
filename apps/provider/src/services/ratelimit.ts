@@ -1,5 +1,6 @@
 import { getRedis } from '@/lib/redis';
 import { env } from '@/env';
+import { z } from 'zod';
 
 // Simple Redis-backed rate limiter with in-memory fallback.
 
@@ -16,11 +17,45 @@ type Overrides = {
   >;
 };
 
+const overridesSchema = z
+  .object({
+    tenants: z
+      .record(
+        z.object({
+          token: z
+            .object({
+              ip: z.number().optional(),
+              client: z.number().optional(),
+              windowSec: z.number().optional(),
+            })
+            .optional(),
+          register: z
+            .object({
+              ip: z.number().optional(),
+              windowSec: z.number().optional(),
+            })
+            .optional(),
+          clients: z
+            .record(
+              z.object({
+                client: z.number().optional(),
+                windowSec: z.number().optional(),
+              }),
+            )
+            .optional(),
+        }),
+      )
+      .optional(),
+  })
+  .optional();
+
 let overrides: Overrides | null = null;
 function getOverrides(): Overrides {
   if (overrides != null) return overrides;
   try {
-    overrides = env.RL_OVERRIDES_JSON ? (JSON.parse(env.RL_OVERRIDES_JSON) as Overrides) : {};
+    const parsed = env.RL_OVERRIDES_JSON ? JSON.parse(env.RL_OVERRIDES_JSON) : {};
+    const validated = overridesSchema.parse(parsed) as Overrides | undefined;
+    overrides = validated || {};
   } catch {
     overrides = {};
   }
@@ -40,7 +75,7 @@ export function getTokenRateLimitConfig(tenant: string, clientId?: string | null
   let w = to?.token?.windowSec ?? windowSec;
   if (clientId && to?.clients?.[clientId]?.client != null) client = to.clients[clientId].client!;
   if (clientId && to?.clients?.[clientId]?.windowSec != null) w = to.clients[clientId].windowSec!;
-  return { ipLimit: ip, clientLimit: client, windowMs: Math.max(1, w) * 1000 };
+  return { ipLimit: Math.max(1, ip), clientLimit: Math.max(1, client), windowMs: Math.max(1, w) * 1000 };
 }
 
 export function getRegisterRateLimitConfig(tenant: string) {
@@ -50,7 +85,7 @@ export function getRegisterRateLimitConfig(tenant: string) {
   const to = o.tenants?.[tenant];
   const ip = to?.register?.ip ?? baseIp;
   const w = to?.register?.windowSec ?? windowSec;
-  return { ipLimit: ip, windowMs: Math.max(1, w) * 1000 };
+  return { ipLimit: Math.max(1, ip), windowMs: Math.max(1, w) * 1000 };
 }
 
 export async function rateLimitTake(key: string, limit: number, windowMs: number): Promise<{ allowed: boolean; remaining: number; reset: number }> {

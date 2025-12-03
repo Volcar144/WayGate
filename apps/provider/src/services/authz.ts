@@ -270,6 +270,7 @@ export async function consumeMagicToken(token: string): Promise<MagicToken | nul
       const mt = JSON.parse(raw as string) as MagicToken;
       return mt;
     } catch (e) {
+      try { const Sentry = require('@sentry/nextjs'); Sentry.captureException(e); } catch {}
       // Fallback if GETDEL not supported
       try {
         const res = await (redis as any).multi().get(key).del(key).exec();
