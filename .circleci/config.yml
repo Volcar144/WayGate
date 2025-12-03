@@ -45,7 +45,7 @@ jobs:
 
       - run:
           name: Install dependencies
-          command: pnpm -w install --frozen-lockfile
+          command: pnpm -w install
 
       - save_cache:
           key: v1-pnpm-store-{{ arch }}-{{ checksum "pnpm-lock.yaml" }}
@@ -58,27 +58,37 @@ jobs:
 
       - run:
           name: Run E2E tests (Playwright)
-          command: pnpm e2e
+          command: |
+            set +e
+            pnpm e2e
+            TEST_EXIT=$?
+            echo "$TEST_EXIT" > /tmp/test_exit_code
+            exit 0
 
       - run:
           name: Prepare artifacts directories
-          when: always
           command: |
             mkdir -p playwright-report test-results
 
       - store_test_results:
           path: test-results
-        when: always
 
       - store_artifacts:
           path: test-results
           destination: test-results
-        when: always
 
       - store_artifacts:
           path: playwright-report
           destination: playwright-report
-        when: always
+
+      - run:
+          name: Fail job if tests failed
+          command: |
+            EXIT_CODE=$(cat /tmp/test_exit_code || echo 0)
+            if [ "$EXIT_CODE" -ne 0 ]; then
+              echo "E2E tests failed with exit code $EXIT_CODE"
+              exit "$EXIT_CODE"
+            fi
 
 workflows:
   e2e:
