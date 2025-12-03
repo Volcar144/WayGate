@@ -3,6 +3,13 @@ import nodemailer from 'nodemailer';
 
 export type SendResult = { ok: boolean; error?: string };
 
+/**
+ * Sends a sign-in (magic) email containing a one-time link to the specified recipient.
+ *
+ * @param to - Recipient email address
+ * @param magicUrl - The sign-in URL to include in the email body
+ * @returns An object with `ok` set to `true` when the message was sent successfully; if `ok` is `false`, `error` contains an error code or message describing the failure
+ */
 export async function sendMagicEmail(to: string, magicUrl: string): Promise<SendResult> {
   try {
     if (!env.SMTP_HOST || !env.SMTP_PORT || !env.EMAIL_FROM) {
@@ -29,6 +36,7 @@ export async function sendMagicEmail(to: string, magicUrl: string): Promise<Send
     });
     return { ok: true };
   } catch (e: any) {
+    try { const Sentry = require('@sentry/nextjs'); Sentry.captureException(e); } catch {}
     console.error('Failed to send magic email', e);
     return { ok: false, error: e?.message || 'send_failed' };
   }

@@ -9,4 +9,25 @@ export const prisma: PrismaClient =
     log: process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error']
   });
 
+// Sentry DB breadcrumbs
+try {
+  // Lazy import to avoid bundling issues if Sentry not installed
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const Sentry = require('@sentry/nextjs');
+  prisma.$on('query', (e: any) => {
+    try {
+      const sanitize = (q: string) => q.replace(/'(?:[^'\\]|\\.)*'/g, "'<redacted>'");
+      Sentry.addBreadcrumb({
+        category: 'db.query',
+        level: 'info',
+        data: {
+          query: sanitize(e.query || ''),
+          duration_ms: e.duration,
+          target: e.target,
+        },
+      });
+    } catch {}
+  });
+} catch {}
+
 if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma;

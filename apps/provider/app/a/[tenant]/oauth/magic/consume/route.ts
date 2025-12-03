@@ -73,6 +73,17 @@ export async function GET(req: NextRequest) {
   return html(`<h1>Signed in</h1><p>You may now return to your original device.</p><p><a href="${redirect}">Continue</a></p>`);
 }
 
+/**
+ * Generate an authorization code, persist it with metadata, construct the redirect URL for the client, and optionally produce a short-lived signed handoff token.
+ *
+ * @param params - Function input
+ * @param params.pending - Pending authentication request containing tenant, client, redirect URI, scope, PKCE/nonce and state values
+ * @param params.userId - ID of the authenticated user for whom the code is issued
+ * @returns An object with:
+ *  - `redirect`: the client's redirect URI with the authorization `code` and `state` query parameters appended,
+ *  - `code`: the issued authorization code (expires in 5 minutes),
+ *  - `handoff`: a signed JWT for handoff when a tenant private key is available (expires in ~2 minutes) or `null` if not created
+ */
 async function issueCodeAndBuildRedirect(params: { pending: PendingAuthRequest; userId: string }) {
   const { pending, userId } = params;
   // Create auth code
@@ -99,6 +110,7 @@ async function issueCodeAndBuildRedirect(params: { pending: PendingAuthRequest; 
       authTime: Math.floor(Date.now() / 1000),
     });
   } catch (e) {
+    try { const Sentry = require('@sentry/nextjs'); Sentry.captureException(e); } catch {}
     console.error('Failed to record auth code metadata', e);
   }
 
@@ -120,6 +132,7 @@ async function issueCodeAndBuildRedirect(params: { pending: PendingAuthRequest; 
         .setExpirationTime('2m')
         .sign(key);
     } catch (e) {
+      try { const Sentry = require('@sentry/nextjs'); Sentry.captureException(e); } catch {}
       console.error('Failed to sign handoff token', e);
       handoff = null;
     }

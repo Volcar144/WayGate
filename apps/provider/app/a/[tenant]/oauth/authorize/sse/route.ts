@@ -5,6 +5,11 @@ import { newRedisSubscriber } from '@/lib/redis';
 
 export const runtime = 'nodejs';
 
+/**
+ * Streams authorization-related Server-Sent Events (SSE) to the client for a validated pending request.
+ *
+ * @returns A Response that streams SSE frames containing authorization events. If the tenant is missing or the pending request is invalid or expired, returns a 400 Response with the body "invalid or expired".
+ */
 export async function GET(req: NextRequest) {
   const tenantSlug = getTenant();
   const rid = req.nextUrl.searchParams.get('rid') || '';
@@ -35,6 +40,7 @@ export async function GET(req: NextRequest) {
         const line = `event: ${event}\n` + `data: ${JSON.stringify(data)}\n\n`;
         void writer.write(encoder.encode(line));
       } catch (e) {
+        try { const Sentry = require('@sentry/nextjs'); Sentry.captureException(e); } catch {}
         console.error('Failed to handle SSE message', e);
       }
     });
@@ -60,17 +66,19 @@ export async function GET(req: NextRequest) {
       try {
         await sub.unsubscribe(channel);
       } catch (e) {
+        try { const Sentry = require('@sentry/nextjs'); Sentry.captureException(e); } catch {}
         console.error('Failed to unsubscribe Redis channel', e);
       }
       try {
         await (sub as any).quit?.();
       } catch (e) {
+        try { const Sentry = require('@sentry/nextjs'); Sentry.captureException(e); } catch {}
         console.error('Failed to quit Redis subscriber', e);
       }
     } else {
       unsubscribeSSE(rid, writer);
     }
-    try { await writer.close(); } catch (e) { console.error('Failed to close SSE writer', e); }
+    try { await writer.close(); } catch (e) { try { const Sentry = require('@sentry/nextjs'); Sentry.captureException(e); } catch {} ; console.error('Failed to close SSE writer', e); }
   };
   // @ts-ignore
   req.signal?.addEventListener?.('abort', onAbort);

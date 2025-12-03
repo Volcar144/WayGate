@@ -3,6 +3,13 @@ import { cookies } from 'next/headers';
 import { env } from '../../../src/env';
 import { createPkce, discover, randomBase64Url } from '../../../src/waygate';
 
+/**
+ * Initiates an OpenID Connect authorization flow by persisting PKCE parameters, state, and nonce in an HTTP-only cookie and redirecting the client to the provider's authorization endpoint.
+ *
+ * The cookie contains `state`, the PKCE `verifier`, `nonce`, and a creation timestamp, is HTTP-only, uses `SameSite=Lax`, and expires after 10 minutes. The redirected authorization URL includes the authorization code parameters (response type, client ID, redirect URI, scope, state, nonce, code challenge, and challenge method).
+ *
+ * @returns A response that redirects the client to the OIDC provider's authorization endpoint.
+ */
 export async function GET() {
   const cfg = await discover();
   const { verifier, challenge, method } = await createPkce();
@@ -15,9 +22,10 @@ export async function GET() {
     nonce,
     created_at: Date.now(),
   };
+  const isSecure = process.env.NODE_ENV === 'production';
   cookies().set('rp_oidc', JSON.stringify(cookiePayload), {
     httpOnly: true,
-    secure: false,
+    secure: isSecure,
     sameSite: 'lax',
     path: '/',
     maxAge: 10 * 60, // 10 minutes
