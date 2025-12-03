@@ -46,7 +46,10 @@ export async function GET(req: NextRequest) {
       const dbProviders = await getEnabledProviderTypesForTenant(tenant.id);
       if (dbProviders.map((p) => p.toLowerCase()).includes(provider)) enabled = true;
     }
-  } catch {}
+  } catch (e) {
+    // Fallback to env-only enablement if DB check fails
+    console.warn('Failed to check DB providers:', e);
+  }
   if (!enabled) return html('<h1>Provider not enabled</h1><p>This external sign-in provider is not enabled for this tenant.</p>', 400);
 
   // Redirect to provider-specific SSO start route

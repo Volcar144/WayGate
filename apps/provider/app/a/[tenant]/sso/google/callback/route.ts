@@ -5,7 +5,7 @@ import { consumeUpstreamState, getGoogleProvider } from '@/services/idp';
 import { getPending, publishSSE, setPendingUser, scopesFromString, serializeParams, completePending } from '@/services/authz';
 import { prisma } from '@/lib/prisma';
 import { getIssuerURL } from '@/utils/issuer';
-import { importJWK, SignJWT } from 'jose';
+import { importJWK, SignJWT, createRemoteJWKSet, jwtVerify } from 'jose';
 import { randomBytes } from 'node:crypto';
 
 export const runtime = 'nodejs';
@@ -17,11 +17,8 @@ function html(body: string, status = 200) {
   });
 }
 
-function parseJwt(token: string): any | null {
-  const parts = token.split('.');
-  if (parts.length !== 3) return null;
-  try { return JSON.parse(Buffer.from(parts[1], 'base64').toString('utf8')); } catch { return null; }
-}
+// Verify Google's ID token signatures via JWKS
+const GOOGLE_JWKS = createRemoteJWKSet(new URL('https://www.googleapis.com/oauth2/v3/certs'));
 
 export async function GET(req: NextRequest) {
   const tenantSlug = getTenant();
@@ -78,14 +75,19 @@ export async function GET(req: NextRequest) {
 
   const idToken = String(tokenResponse.id_token || '');
   const at = String(tokenResponse.access_token || '');
-  const claims = parseJwt(idToken);
-  if (!claims) return html('<h1>Google sign-in failed</h1><p>Invalid ID token</p>', 400);
+  let claims: any;
+  try {
+    const verified = await jwtVerify(idToken, GOOGLE_JWKS, {
+      issuer: ['https://accounts.google.com', 'accounts.google.com'],
+      audience: provider.clientId,
+    });
+    claims = verified.payload;
+  } catch (e) {
+    return html('<h1>Google sign-in failed</h1><p>Invalid ID token</p>', 400);
+  }
 
-  // Basic validation: nonce, aud, iss
+  // Additional validation: nonce binding
   if (claims.nonce !== us.nonce) return html('<h1>Google sign-in failed</h1><p>Invalid nonce</p>', 400);
-  if (String(claims.aud) !== provider.clientId) return html('<h1>Google sign-in failed</h1><p>Invalid audience</p>', 400);
-  const iss = String(claims.iss || '');
-  if (!(iss === 'https://accounts.google.com' || iss === 'accounts.google.com')) return html('<h1>Google sign-in failed</h1><p>Invalid issuer</p>', 400);
 
   const sub = String(claims.sub || '');
   if (!sub) return html('<h1>Google sign-in failed</h1><p>Missing subject</p>', 400);

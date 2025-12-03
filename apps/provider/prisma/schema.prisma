@@ -16,14 +16,16 @@ model Tenant {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  users         User[]
-  clients       Client[]
-  keys          JwkKey[]
-  audits        Audit[]
-  authCodes     AuthCode[]
-  sessions      Session[]
-  refreshTokens RefreshToken[]
-  consents      Consent[]
+  users               User[]
+  clients             Client[]
+  keys                JwkKey[]
+  audits              Audit[]
+  authCodes           AuthCode[]
+  sessions            Session[]
+  refreshTokens       RefreshToken[]
+  consents            Consent[]
+  identityProviders   IdentityProvider[]
+  externalIdentities  ExternalIdentity[]
 }
 
 model User {
@@ -34,12 +36,13 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  tenant      Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  credentials Credential[]
-  sessions    Session[]
-  consents    Consent[]
-  audits      Audit[]
-  authCodes   AuthCode[]
+  tenant              Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  credentials         Credential[]
+  sessions            Session[]
+  consents            Consent[]
+  audits              Audit[]
+  authCodes           AuthCode[]
+  externalIdentities  ExternalIdentity[]
 
   @@unique([tenantId, email])
   @@index([tenantId])
@@ -235,4 +238,5 @@ model ExternalIdentity {
   @@unique([providerId, subject])
   @@index([tenantId])
   @@index([userId])
+  @@index([email])
 }

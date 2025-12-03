@@ -132,8 +132,14 @@ export async function getUpstreamState(state: string): Promise<UpstreamState | n
   const redis = await getRedis();
   if (redis) {
     const raw = await redis.get(keyState(state));
-    if (!raw) return null;
-    try { return JSON.parse(raw) as UpstreamState; } catch { return null; }
+    if (raw) {
+      try {
+        return JSON.parse(raw) as UpstreamState;
+      } catch {
+        // fall through to in-memory store on parse error
+      }
+    }
+    // if no raw in Redis, fall through to in-memory store
   }
   const store = ensureStore();
   const s = store.states.get(state) || null;
@@ -151,16 +157,18 @@ export async function consumeUpstreamState(state: string): Promise<UpstreamState
     const key = keyState(state);
     try {
       const raw = await (redis as any).getdel(key);
-      if (!raw) return null;
-      return JSON.parse(raw) as UpstreamState;
+      if (raw) {
+        try { return JSON.parse(raw) as UpstreamState; } catch { /* fall through */ }
+      }
     } catch (e) {
       try {
         const res = await (redis as any).multi().get(key).del(key).exec();
         const raw = res?.[0]?.[1] as string | null;
-        if (!raw) return null;
-        return JSON.parse(raw) as UpstreamState;
+        if (raw) {
+          try { return JSON.parse(raw) as UpstreamState; } catch { /* fall through */ }
+        }
       } catch {
-        return null;
+        // fall through to in-memory store
       }
     }
   }
@@ -173,18 +181,19 @@ export async function consumeUpstreamState(state: string): Promise<UpstreamState
 }
 
 export async function getEnabledProviderTypesForTenant(tenantId: string): Promise<IdpType[]> {
-  const rows = await (prisma as any).identityProvider.findMany({ where: { tenantId, status: 'enabled' }, select: { type: true } });
-  return (rows || []).map((r: any) => r.type as IdpType);
+  const rows = await prisma.identityProvider.findMany({ where: { tenantId, status: 'enabled' }, select: { type: true } });
+  return (rows || []).map((r) => r.type as IdpType);
 }
 
 export async function getGoogleProvider(tenantId: string): Promise<IdentityProviderConfig | null> {
-  const row = await (prisma as any).identityProvider.findFirst({ where: { tenantId, type: 'google', status: 'enabled' } });
+  const row = await prisma.identityProvider.findFirst({ where: { tenantId, type: 'google', status: 'enabled' } });
   if (!row) return null;
   let clientSecret = '';
   try {
     clientSecret = decryptSecret(row.clientSecretEnc as string);
   } catch (e) {
-    // If decrypt fails, treat as not configured
+    // Log a structured warning to aid debugging without leaking secrets
+    try { console.warn('Failed to decrypt Google client secret', { tenantId, providerId: row.id }); } catch {}
     return null;
   }
   return {

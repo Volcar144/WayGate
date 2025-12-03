@@ -138,6 +138,7 @@ export async function GET(req: NextRequest) {
 
   // Providers enabled for this tenant (per-tenant config via DB, with optional env fallback SSO_PROVIDERS)
   const envProviders = (process.env.SSO_PROVIDERS || '').split(',').map((s) => s.trim().toLowerCase()).filter(Boolean);
+  // Intentionally using dynamic import to avoid bundling Prisma in edge runtime for this route.
   const dbProviders: string[] = (await (await import('@/services/idp')).getEnabledProviderTypesForTenant(tenant.id)).map((s) => s.toLowerCase());
   const supported = ['google', 'microsoft', 'github'];
   const enabledProviders = Array.from(new Set([...supported.filter((p) => envProviders.includes(p)), ...supported.filter((p) => dbProviders.includes(p))]));
