@@ -36,7 +36,7 @@ async function main() {
       clientId,
       clientSecret,
       name: 'Example App',
-      redirectUris: ['http://localhost:4000/callback'],
+      redirectUris: ['http://localhost:3001/callback'],
       grantTypes: ['authorization_code', 'refresh_token'],
       firstParty: true,
     },

@@ -53,7 +53,17 @@ Prerequisites
 - From the protected page (or home when authenticated) click "Sign out"
 - The RP calls the provider logout endpoint (/a/{tenant}/logout) with the refresh token and clears the local session
 
-Notes
-- JWKS caching and rotation: the RP uses jose's createRemoteJWKSet, which caches the provider JWKS and automatically re-fetches on unknown key IDs. This tolerates signing key rotation.
-- Authorization Code + PKCE is required by the provider for public clients. Confidential clients can authenticate to the token endpoint using Basic auth with client_secret.
-- The RP enforces authentication on the /protected route by redirecting to /auth/login when no session is present.
+Local E2E test harness
+
+You can run a full end‑to‑end test suite locally without any external services.
+This will:
+- start Docker services (Postgres, Redis, and a mock SMTP inbox with web UI)
+- apply Prisma migrations and seed a tenant + client
+- start both Next.js apps (provider on 3000, RP on 3001)
+- run Playwright tests to exercise discovery, authorize (magic + enchanted links), token exchange, refresh, userinfo, and logout
+
+Commands
+- Install Playwright browsers: pnpm e2e:install
+- Run the E2E suite: pnpm e2e
+
+The mock SMTP inbox is available at http://localhost:8025 (SMTP on 1025). The provider will send magic links if SMTP is configured via env (defaults are set by the test harness).

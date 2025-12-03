@@ -1,0 +1,62 @@
+version: 2.1
+
+jobs:
+  e2e:
+    machine:
+      image: ubuntu-2204:current
+    steps:
+      - checkout
+
+      - run:
+          name: Install Node.js 20 and pnpm (via corepack)
+          command: |
+            curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+            sudo apt-get install -y nodejs
+            node -v
+            corepack enable
+            corepack prepare pnpm@9.11.0 --activate
+            pnpm -v
+
+      - run:
+          name: Ensure Docker Compose v2 plugin is available
+          command: |
+            sudo apt-get update
+            sudo apt-get install -y ca-certificates curl gnupg
+            sudo install -m 0755 -d /etc/apt/keyrings
+            curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+            echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo $VERSION_CODENAME) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+            sudo apt-get update
+            sudo apt-get install -y docker-ce-cli docker-compose-plugin
+            docker --version
+            docker compose version || true
+            sudo service docker start || true
+
+      - run:
+          name: Install dependencies
+          command: pnpm install
+
+      - run:
+          name: Install Playwright browsers and OS deps
+          command: pnpm e2e:install
+
+      - run:
+          name: Run E2E tests (Playwright)
+          command: pnpm e2e
+
+      - run:
+          name: Prepare artifacts directories
+          when: always
+          command: |
+            mkdir -p playwright-report test-results
+
+      - store_artifacts:
+          path: playwright-report
+          destination: playwright-report
+      - store_artifacts:
+          path: test-results
+          destination: test-results
+
+workflows:
+  e2e:
+    jobs:
+      - e2e

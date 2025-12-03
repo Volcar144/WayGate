@@ -4,6 +4,7 @@ import { getTenant } from '@/lib/tenant';
 import { findTenantBySlug } from '@/services/jwks';
 import { getPending, issueMagicToken, ratelimitCheck, serializeParams } from '@/services/authz';
 import { getIssuerURL } from '@/utils/issuer';
+import { sendMagicEmail } from '@/services/email';
 
 export async function POST(req: NextRequest) {
   const tenantSlug = getTenant();
@@ -35,6 +36,9 @@ export async function POST(req: NextRequest) {
   // Provide a debug link for local/testing scenarios.
   const issuer = getIssuerURL();
   const magicUrl = `${issuer}/oauth/magic/consume${serializeParams({ token: mt.token })}`;
+
+  // Attempt to send via SMTP if configured
+  try { await sendMagicEmail(email, magicUrl); } catch {}
 
   return NextResponse.json({ ok: true, message: 'Magic link sent if email exists. For debug, use provided link.', debug_link: magicUrl });
 }
