@@ -30,8 +30,8 @@ jobs:
       - run:
           name: Enable corepack and pnpm
           command: |
-            corepack enable
-            corepack prepare pnpm@9.11.0 --activate
+            sudo corepack enable
+            sudo corepack prepare pnpm@9.11.0 --activate
             pnpm -v
 
       - run:
@@ -68,15 +68,17 @@ jobs:
 
       - store_test_results:
           path: test-results
-          when: always
+        when: always
 
       - store_artifacts:
           path: test-results
           destination: test-results
+        when: always
 
       - store_artifacts:
           path: playwright-report
           destination: playwright-report
+        when: always
 
 workflows:
   e2e:
