@@ -9,6 +9,15 @@ function html(body: string, status = 200) {
   );
 }
 
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 export async function GET(req: NextRequest) {
   const tenantSlug = getTenant();
   if (!tenantSlug) return html('<h1>Error</h1><p>missing tenant</p>', 400);
@@ -32,8 +41,9 @@ export async function GET(req: NextRequest) {
 
   // Placeholder: External SSO flow not implemented yet.
   // In a full implementation, redirect to the provider authorization endpoint here.
+  const label = provider === 'google' ? 'Google' : provider === 'microsoft' ? 'Microsoft' : provider === 'github' ? 'GitHub' : provider;
   return html(
-    `<h1>${provider[0].toUpperCase()}${provider.slice(1)} sign-in not yet configured</h1><p>The external SSO flow is not implemented in this demo. Please use magic link instead.</p>`,
+    `<h1>${escapeHtml(label)} sign-in not yet configured</h1><p>The external SSO flow is not implemented in this demo. Please use magic link instead.</p>`,
     501,
   );
 }

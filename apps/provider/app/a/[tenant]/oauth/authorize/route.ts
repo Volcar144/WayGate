@@ -54,6 +54,15 @@ function oidcErrorJson(params: { error: string; error_description?: string }) {
   return NextResponse.json(params, { status: 400 });
 }
 
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 const authorizeQuerySchema = z.object({
   response_type: z.literal('code', {
     errorMap: () => ({ message: 'response_type must be code' }),
@@ -125,7 +134,7 @@ export async function GET(req: NextRequest) {
 
   // Render a minimal login UI with magic + enchanted link channel (rid)
   const scopeList = (q.scope ?? 'openid').split(' ').filter(Boolean);
-  const scopes = scopeList.join(', ');
+  const scopes = scopeList.map(escapeHtml).join(', ');
 
   // Providers enabled for this tenant (optional via env SSO_PROVIDERS="google,microsoft,github")
   const envProviders = (process.env.SSO_PROVIDERS || '').split(',').map((s) => s.trim().toLowerCase()).filter(Boolean);
@@ -155,10 +164,14 @@ export async function GET(req: NextRequest) {
     "img-src 'self' data:",
   ].join('; ');
 
+  const escTenant = escapeHtml(tenantSlug);
+  const escClientName = escapeHtml(client.name);
+  const logoInitial = (tenantSlug.match(/[a-z0-9]/i)?.[0] || '#').toUpperCase();
+
   const body = `
 <header aria-label="Tenant branding">
-  <div class="logo" aria-hidden="true">${tenantSlug.slice(0,1).toUpperCase()}</div>
-  <h1>${tenantSlug} • Sign in to ${client.name}</h1>
+  <div class="logo" aria-hidden="true">${logoInitial}</div>
+  <h1>${escTenant} • Sign in to ${escClientName}</h1>
 </header>
 <section class="card" role="region" aria-label="Cross-device hint">
   <p>Requesting scopes: <code>${scopes || 'openid'}</code></p>
@@ -178,18 +191,18 @@ export async function GET(req: NextRequest) {
   <p id=\"magic-status\" aria-live="polite"></p>
   <div id="sse-wait" class="row" aria-live="polite"><div class="spinner" aria-hidden="true"></div><span>Waiting for sign-in to complete…</span></div>
 </section>
-<section class="card" id="sso" ${providerButtons ? '' : 'style="display:none"'} aria-labelledby="sso-heading">
+<section class="card" id="sso" ${enabledProviders.length > 0 ? '' : 'style="display:none"'} aria-labelledby="sso-heading">
   <h2 id="sso-heading">Or continue with</h2>
   <div class="providers">${providerButtons}</div>
 </section>
 <section class="card" id=\"consent\" style=\"display:none\" aria-labelledby="consent-heading">
   <h2 id="consent-heading">Consent required</h2>
-  <p>The application <strong>${client.name}</strong> is requesting access to:</p>
+  <p>The application <strong>${escClientName}</strong> is requesting access to:</p>
   <ul>
     ${scopeList.map((s) => {
       const map: Record<string,string> = { openid: 'Sign you in', email: 'Your email address', profile: 'Your basic profile' };
       const text = map[s] || s;
-      return `<li>${text}</li>`;
+      return `<li>${escapeHtml(text)}</li>`;
     }).join('')}
   </ul>
   <form id=\"consent-form\">
@@ -239,13 +252,13 @@ export async function GET(req: NextRequest) {
     consentStatus.textContent = 'Processing...';
     const fd = new FormData(consentForm);
     const res = await fetch('./consent', { method: 'POST', body: fd });
-    const data = await res.json();
-    if (res.ok && data.redirect) {
+    const data = await res.json().catch(() => ({}));
+    if (res.ok && data && data.redirect) {
       window.location.href = data.redirect;
-    } else if (res.status === 400 && data.redirect) {
+    } else if (res.status === 400 && data && data.redirect) {
       window.location.href = data.redirect;
     } else {
-      consentStatus.textContent = data.error || 'Failed to grant consent';
+      consentStatus.textContent = (data && data.error) || 'Failed to grant consent';
     }
   });
   denyBtn.addEventListener('click', async () => {
@@ -273,6 +286,7 @@ export async function GET(req: NextRequest) {
 
   // Enchanted link via SSE
   const ev = new EventSource('./sse?rid=${pending.rid}');
+  window.addEventListener('beforeunload', () => ev.close());
   ev.addEventListener('loginComplete', (e) => {
     try { const data = JSON.parse(e.data); if (data.redirect) window.location.href = data.redirect; } catch {}
   });
