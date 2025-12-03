@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 
-const RP_BASE = 'http://localhost:3001';
-const PROVIDER_BASE = 'http://localhost:3000/a/example';
+const RP_BASE = process.env.SMOKE_RP_BASE || 'http://localhost:3001';
+const PROVIDER_BASE = process.env.SMOKE_PROVIDER_BASE || 'http://localhost:3000/a/example';
 
 test('OIDC discovery, auth (magic + enchanted), token exchange, userinfo, refresh, and logout', async ({ page, context, request }) => {
   // Discovery
