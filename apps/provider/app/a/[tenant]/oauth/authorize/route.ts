@@ -136,9 +136,11 @@ export async function GET(req: NextRequest) {
   const scopeList = (q.scope ?? 'openid').split(' ').filter(Boolean);
   const scopes = scopeList.map(escapeHtml).join(', ');
 
-  // Providers enabled for this tenant (optional via env SSO_PROVIDERS="google,microsoft,github")
+  // Providers enabled for this tenant (per-tenant config via DB, with optional env fallback SSO_PROVIDERS)
   const envProviders = (process.env.SSO_PROVIDERS || '').split(',').map((s) => s.trim().toLowerCase()).filter(Boolean);
-  const enabledProviders = ['google', 'microsoft', 'github'].filter((p) => envProviders.includes(p));
+  const dbProviders: string[] = (await (await import('@/services/idp')).getEnabledProviderTypesForTenant(tenant.id)).map((s) => s.toLowerCase());
+  const supported = ['google', 'microsoft', 'github'];
+  const enabledProviders = Array.from(new Set([...supported.filter((p) => envProviders.includes(p)), ...supported.filter((p) => dbProviders.includes(p))]));
   const providerButtons = enabledProviders
     .map((p) => {
       const label = p === 'google' ? 'Google' : p === 'microsoft' ? 'Microsoft' : 'GitHub';

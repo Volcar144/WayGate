@@ -36,14 +36,30 @@ export async function GET(req: NextRequest) {
     .split(',')
     .map((s) => s.trim().toLowerCase())
     .filter(Boolean);
-  const enabled = ['google', 'microsoft', 'github'].includes(provider) && envProviders.includes(provider);
+  const supported = ['google', 'microsoft', 'github'];
+  let enabled = supported.includes(provider) && envProviders.includes(provider);
+  try {
+    const { findTenantBySlug } = await import('@/services/jwks');
+    const tenant = await findTenantBySlug(tenantSlug);
+    if (tenant) {
+      const { getEnabledProviderTypesForTenant } = await import('@/services/idp');
+      const dbProviders = await getEnabledProviderTypesForTenant(tenant.id);
+      if (dbProviders.map((p) => p.toLowerCase()).includes(provider)) enabled = true;
+    }
+  } catch {}
   if (!enabled) return html('<h1>Provider not enabled</h1><p>This external sign-in provider is not enabled for this tenant.</p>', 400);
 
-  // Placeholder: External SSO flow not implemented yet.
-  // In a full implementation, redirect to the provider authorization endpoint here.
-  const label = provider === 'google' ? 'Google' : provider === 'microsoft' ? 'Microsoft' : provider === 'github' ? 'GitHub' : provider;
+  // Redirect to provider-specific SSO start route
+  if (provider === 'google') {
+    const u = new URL(req.url);
+    const start = new URL(`/a/${tenantSlug}/sso/google/start`, u.origin);
+    start.searchParams.set('rid', rid);
+    return NextResponse.redirect(start.toString());
+  }
+
+  const label = provider === 'microsoft' ? 'Microsoft' : provider === 'github' ? 'GitHub' : provider;
   return html(
-    `<h1>${escapeHtml(label)} sign-in not yet configured</h1><p>The external SSO flow is not implemented in this demo. Please use magic link instead.</p>`,
+    `<h1>${escapeHtml(label)} sign-in not yet configured</h1><p>This provider is not implemented yet. Please use magic link instead.</p>`,
     501,
   );
 }
