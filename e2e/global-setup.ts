@@ -38,14 +38,41 @@ function run(cmd: string, args: string[], opts: { cwd?: string; env?: NodeJS.Pro
 }
 
 export default async function globalSetup(_config: FullConfig) {
-  // Start infrastructure
-  await run('docker', ['compose', 'up', '-d', 'postgres', 'redis', 'mailpit']);
-  await Promise.all([
-    waitForPort('127.0.0.1', 5432, 120_000),
-    waitForPort('127.0.0.1', 6379, 120_000),
-    waitForPort('127.0.0.1', 1025, 120_000),
-    waitForPort('127.0.0.1', 8025, 120_000),
-  ]);
+  const isCI = !!process.env.CI;
+
+  if (!isCI) {
+    // Local dev: start infra via docker compose and wait on localhost
+    await run('docker', ['compose', 'up', '-d', 'postgres', 'redis', 'mailpit']);
+    await Promise.all([
+      waitForPort('127.0.0.1', 5432, 120_000),
+      waitForPort('127.0.0.1', 6379, 120_000),
+      waitForPort('127.0.0.1', 1025, 120_000),
+      waitForPort('127.0.0.1', 8025, 120_000),
+    ]);
+  } else {
+    // CI: service containers are provided by the executor. Wait for them by hostname.
+    // Derive DB host/port from the SUPABASE_DATABASE_URL if provided
+    const SUPABASE_DATABASE_URL = process.env.SUPABASE_DATABASE_URL || 'postgresql://postgres:postgres@postgres:5432/waygate';
+    let dbHost = 'postgres';
+    let dbPort = 5432;
+    try {
+      const u = new URL(SUPABASE_DATABASE_URL);
+      dbHost = u.hostname || dbHost;
+      dbPort = u.port ? Number(u.port) : dbPort;
+    } catch {}
+
+    const redisHost = process.env.REDIS_HOST || 'redis';
+    const redisPort = Number(process.env.REDIS_PORT || '6379');
+    const smtpHost = process.env.SMTP_HOST || 'mailhog';
+    const smtpPort = Number(process.env.SMTP_PORT || '1025');
+
+    await Promise.all([
+      waitForPort(dbHost, dbPort, 120_000),
+      waitForPort(redisHost, redisPort, 120_000),
+      waitForPort(smtpHost, smtpPort, 120_000),
+      waitForPort(smtpHost, 8025, 120_000),
+    ]);
+  }
 
   const repoRoot = path.join(__dirname, '..');
   const providerDir = path.join(repoRoot, 'apps', 'provider');
