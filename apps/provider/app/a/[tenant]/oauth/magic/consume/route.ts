@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { consumeMagicToken, getPending, publishSSE, setPendingUser, completePending, scopesFromString, serializeParams } from '@/services/authz';
+import type { PendingAuthRequest } from '@/services/authz';
 import { getTenant } from '@/lib/tenant';
 import { findTenantBySlug, getActivePrivateJwk } from '@/services/jwks';
 import { prisma } from '@/lib/prisma';
@@ -66,15 +67,14 @@ export async function GET(req: NextRequest) {
   }
 
   // Issue code and publish handoff
-  const { redirect, handoff } = await issueCodeAndBuildRedirect({ tenantId: tenant.id, pendingRid: pending.rid, userId: user.id, state: pending.state });
+  const { redirect, handoff } = await issueCodeAndBuildRedirect({ pending, userId: user.id });
   await publishSSE(pending.rid, 'loginComplete', { redirect, handoff });
   await completePending(pending.rid);
   return html(`<h1>Signed in</h1><p>You may now return to your original device.</p><p><a href="${redirect}">Continue</a></p>`);
 }
 
-async function issueCodeAndBuildRedirect(params: { tenantId: string; pendingRid: string; userId: string; state: string | null }) {
-  // Load pending again
-  const pending = await getPending(params.pendingRid)!;
+async function issueCodeAndBuildRedirect(params: { pending: PendingAuthRequest; userId: string }) {
+  const { pending, userId } = params;
   // Create auth code
   const code = randomUrlSafe(32);
   const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
@@ -83,7 +83,7 @@ async function issueCodeAndBuildRedirect(params: { tenantId: string; pendingRid:
       tenantId: pending.tenantId,
       code,
       clientId: pending.clientDbId,
-      userId: params.userId,
+      userId,
       redirectUri: pending.redirectUri,
       scope: pending.scope,
       expiresAt,
@@ -106,14 +106,14 @@ async function issueCodeAndBuildRedirect(params: { tenantId: string; pendingRid:
   const redirect = pending.redirectUri + qp;
 
   // Signed handoff (JWT) for enchanted link signal
-  const priv = await getActivePrivateJwk(params.tenantId);
+  const priv = await getActivePrivateJwk(pending.tenantId);
   let handoff: string | null = null;
   if (priv) {
     try {
       const alg = 'RS256';
       const key = await importJWK(priv as any, alg);
       const issuer = getIssuerURL();
-      handoff = await new SignJWT({ sub: params.userId, rid: pending.rid, aud: pending.clientId })
+      handoff = await new SignJWT({ sub: userId, rid: pending.rid, aud: pending.clientId })
         .setProtectedHeader({ alg, kid: (priv as any).kid })
         .setIssuer(issuer)
         .setIssuedAt()
