@@ -50,6 +50,11 @@ const overridesSchema = z
   .optional();
 
 let overrides: Overrides | null = null;
+/**
+ * Load and cache tenant-specific rate limit overrides from the `RL_OVERRIDES_JSON` environment variable.
+ *
+ * @returns The parsed and schema-validated overrides object; returns an empty object if the environment value is unset or invalid.
+ */
 function getOverrides(): Overrides {
   if (overrides != null) return overrides;
   try {
@@ -62,6 +67,13 @@ function getOverrides(): Overrides {
   return overrides!;
 }
 
+/**
+ * Compute token rate limit configuration for a tenant, applying environment defaults and any tenant- or client-specific overrides.
+ *
+ * @param tenant - Tenant identifier used to look up overrides
+ * @param clientId - Optional client identifier used to apply client-specific overrides
+ * @returns An object with `ipLimit` (maximum requests per IP in the window), `clientLimit` (maximum requests per client in the window), and `windowMs` (window duration in milliseconds). All numeric values are guaranteed to be at least 1.
+ */
 export function getTokenRateLimitConfig(tenant: string, clientId?: string | null) {
   const baseIp = env.RL_TOKEN_IP_LIMIT ?? 60;
   const baseClient = env.RL_TOKEN_CLIENT_LIMIT ?? 120;
@@ -78,6 +90,12 @@ export function getTokenRateLimitConfig(tenant: string, clientId?: string | null
   return { ipLimit: Math.max(1, ip), clientLimit: Math.max(1, client), windowMs: Math.max(1, w) * 1000 };
 }
 
+/**
+ * Compute registration rate limit settings for a specific tenant.
+ *
+ * @param tenant - Tenant identifier used to lookup overrides
+ * @returns An object containing `ipLimit` (maximum requests per IP for registration, at least 1) and `windowMs` (time window in milliseconds, at least 1000)
+ */
 export function getRegisterRateLimitConfig(tenant: string) {
   const baseIp = env.RL_REGISTER_IP_LIMIT ?? 10;
   const windowSec = env.RL_REGISTER_WINDOW_SEC ?? 3600;
@@ -88,6 +106,17 @@ export function getRegisterRateLimitConfig(tenant: string) {
   return { ipLimit: Math.max(1, ip), windowMs: Math.max(1, w) * 1000 };
 }
 
+/**
+ * Attempt to consume one unit from the rate limit bucket identified by `key`.
+ *
+ * @param key - Namespaced identifier for the rate limit bucket
+ * @param limit - Maximum allowed units in the window
+ * @param windowMs - Rolling window duration in milliseconds
+ * @returns An object with:
+ *  - `allowed`: `true` if the consumption is within the limit, `false` otherwise.
+ *  - `remaining`: number of units still available in the current window.
+ *  - `reset`: timestamp (milliseconds since epoch) when the current window resets.
+ */
 export async function rateLimitTake(key: string, limit: number, windowMs: number): Promise<{ allowed: boolean; remaining: number; reset: number }> {
   const redis = await getRedis();
   if (redis) {

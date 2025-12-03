@@ -5,6 +5,11 @@ import { newRedisSubscriber } from '@/lib/redis';
 
 export const runtime = 'nodejs';
 
+/**
+ * Streams authorization-related Server-Sent Events (SSE) to the client for a validated pending request.
+ *
+ * @returns A Response that streams SSE frames containing authorization events. If the tenant is missing or the pending request is invalid or expired, returns a 400 Response with the body "invalid or expired".
+ */
 export async function GET(req: NextRequest) {
   const tenantSlug = getTenant();
   const rid = req.nextUrl.searchParams.get('rid') || '';

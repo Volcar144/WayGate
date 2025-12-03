@@ -1,6 +1,12 @@
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 
+/**
+ * Attach correlation and security headers to the outgoing response for the given request.
+ *
+ * @param req - Incoming request; if it contains an `x-request-id` header that value is reused, otherwise a new UUID is generated.
+ * @returns A NextResponse with an `x-request-id` header set and several security headers applied (Content-Security-Policy, X-Content-Type-Options, Referrer-Policy, X-Frame-Options, Permissions-Policy, Cross-Origin-Resource-Policy, Cross-Origin-Opener-Policy, and `Strict-Transport-Security` when in production).
+ */
 export function middleware(req: NextRequest) {
   const res = NextResponse.next();
   // Correlation

@@ -1,6 +1,14 @@
 import * as Sentry from '@sentry/nextjs';
 import { env } from './src/env';
 
+/**
+ * Initializes Sentry for the application when a DSN is configured.
+ *
+ * If no SENTRY_DSN is provided, the function is a no-op. When initialized, Sentry
+ * is configured with environment and tracing settings and a before-send hook
+ * that redacts sensitive information (such as emails, tokens, secrets,
+ * passwords, authorization headers, and cookies) from events before they are sent.
+ */
 export async function register() {
   if (!env.SENTRY_DSN) return;
   Sentry.init({
@@ -32,7 +40,7 @@ export async function register() {
         if (event.request) event.request = scrub(event.request);
         if (event.extra) event.extra = scrub(event.extra);
         if (event.contexts) event.contexts = scrub(event.contexts);
-      } catch {} // eslint-disable-line no-empty
+      } catch {}
       return event;
     },
   });

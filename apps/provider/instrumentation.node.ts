@@ -1,6 +1,11 @@
 import * as Sentry from '@sentry/nextjs';
 import { env } from './src/env';
 
+/**
+ * Initializes Sentry only when SENTRY_DSN is provided, configuring environment, sampling, session tracking, and a scrubber for sensitive data.
+ *
+ * The registration is a no-op if env.SENTRY_DSN is not set. When initialized, Sentry is configured with a default environment of `process.env.NODE_ENV` or `'development'`, traces and profiles sampling rates, and automatic session tracking. A `beforeSend` hook redacts sensitive information (email addresses and values or keys that look like tokens, secrets, passwords, authorization, or cookies) from event.request, event.extra, event.contexts, event.breadcrumbs, and string values in event.exception.values.
+ */
 export async function register() {
   if (!env.SENTRY_DSN) return;
   Sentry.init({

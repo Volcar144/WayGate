@@ -37,6 +37,14 @@ function verifyPkce(verifier: string, challenge: string, method: 'S256' | 'plain
   return h === challenge;
 }
 
+/**
+ * Handles OAuth2/OpenID Connect token exchange requests for a tenant-scoped client.
+ *
+ * Accepts form-encoded requests and processes the `authorization_code` and `refresh_token` grant types, performing tenant resolution, client authentication (including PKCE verification for authorization codes and confidential client secret checks), rate limiting, session/refresh-token creation or rotation, token signing (access and ID tokens), audit logging, and error responses per the OIDC/OAuth2 flow.
+ *
+ * @param req - The incoming NextRequest containing headers and form data (`grant_type`, and grant-specific fields).
+ * @returns A JSON HTTP response containing either issued tokens and their metadata (`token_type`, `access_token`, `expires_in`, `id_token`, `refresh_token`, `scope`) on success, or an error object (`error`, `error_description`) with an appropriate HTTP status on failure.
+ */
 export async function POST(req: NextRequest) {
   const tenantSlug = getTenant();
   if (!tenantSlug) return oidcError('invalid_request', 'missing tenant');

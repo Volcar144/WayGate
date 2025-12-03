@@ -15,6 +15,16 @@ export type Claims = {
   [key: string]: any;
 };
 
+/**
+ * Retrieves and validates the current session from the `rp_session` cookie, refreshing tokens if needed.
+ *
+ * Attempts to parse the `rp_session` cookie, verify its ID and access tokens, and return the session along with decoded claims.
+ * If token verification fails and a `refresh_token` is available, it requests new tokens, updates the `rp_session` cookie
+ * (setting `secure` when NODE_ENV is "production"), re-verifies the refreshed tokens, and returns the updated session and claims.
+ * If parsing, verification, or refresh do not succeed, returns a null session.
+ *
+ * @returns An object containing `session` (the validated or refreshed `SessionCookie`, or `null`), and when available `idClaims` and `accessClaims` with the decoded token payloads.
+ */
 export async function getSession(): Promise<{
   session: SessionCookie | null;
   idClaims?: Claims;
