@@ -40,21 +40,23 @@ jobs:
 
       - restore_cache:
           keys:
-            - v1-pnpm-store-{{ arch }}-{{ checksum "pnpm-lock.yaml" }}
+            - v1-pnpm-store-{{ arch }}-{{ checksum "pnpm-workspace.yaml" }}-{{ checksum "package.json" }}
             - v1-pnpm-store-{{ arch }}-
 
       - run:
-          name: Install dependencies
-          command: pnpm -w install
+          name: Install dependencies (all workspaces)
+          command: pnpm -r install
 
       - save_cache:
-          key: v1-pnpm-store-{{ arch }}-{{ checksum "pnpm-lock.yaml" }}
+          key: v1-pnpm-store-{{ arch }}-{{ checksum "pnpm-workspace.yaml" }}-{{ checksum "package.json" }}
           paths:
             - ~/.pnpm-store
 
       - run:
-          name: Install Playwright browsers
-          command: pnpm exec playwright install
+          name: Install Playwright browsers and OS deps
+          command: |
+            export DEBIAN_FRONTEND=noninteractive
+            pnpm e2e:install
 
       - run:
           name: Run E2E tests (Playwright)
