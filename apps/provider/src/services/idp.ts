@@ -185,15 +185,14 @@ export async function getEnabledProviderTypesForTenant(tenantId: string): Promis
   return (rows || []).map((r) => r.type as IdpType);
 }
 
-export async function getGoogleProvider(tenantId: string): Promise<IdentityProviderConfig | null> {
-  const row = await prisma.identityProvider.findFirst({ where: { tenantId, type: 'google', status: 'enabled' } });
+async function getProviderByType(tenantId: string, type: IdpType): Promise<IdentityProviderConfig | null> {
+  const row = await prisma.identityProvider.findFirst({ where: { tenantId, type, status: 'enabled' } });
   if (!row) return null;
   let clientSecret = '';
   try {
     clientSecret = decryptSecret(row.clientSecretEnc as string);
   } catch (e) {
-    // Log a structured warning to aid debugging without leaking secrets
-    try { console.warn('Failed to decrypt Google client secret', { tenantId, providerId: row.id }); } catch {}
+    try { console.warn(`Failed to decrypt ${type} client secret`, { tenantId, providerId: row.id }); } catch {}
     return null;
   }
   return {
@@ -207,4 +206,12 @@ export async function getGoogleProvider(tenantId: string): Promise<IdentityProvi
     scopes: (row.scopes || []) as string[],
     status: row.status as ProviderStatus,
   };
+}
+
+export async function getGoogleProvider(tenantId: string): Promise<IdentityProviderConfig | null> {
+  return getProviderByType(tenantId, 'google');
+}
+
+export async function getMicrosoftProvider(tenantId: string): Promise<IdentityProviderConfig | null> {
+  return getProviderByType(tenantId, 'microsoft');
 }

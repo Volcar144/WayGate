@@ -53,14 +53,19 @@ export async function GET(req: NextRequest) {
   if (!enabled) return html('<h1>Provider not enabled</h1><p>This external sign-in provider is not enabled for this tenant.</p>', 400);
 
   // Redirect to provider-specific SSO start route
+  const u = new URL(req.url);
   if (provider === 'google') {
-    const u = new URL(req.url);
     const start = new URL(`/a/${tenantSlug}/sso/google/start`, u.origin);
     start.searchParams.set('rid', rid);
     return NextResponse.redirect(start.toString());
   }
+  if (provider === 'microsoft') {
+    const start = new URL(`/a/${tenantSlug}/sso/microsoft/start`, u.origin);
+    start.searchParams.set('rid', rid);
+    return NextResponse.redirect(start.toString());
+  }
 
-  const label = provider === 'microsoft' ? 'Microsoft' : provider === 'github' ? 'GitHub' : provider;
+  const label = provider === 'github' ? 'GitHub' : provider;
   return html(
     `<h1>${escapeHtml(label)} sign-in not yet configured</h1><p>This provider is not implemented yet. Please use magic link instead.</p>`,
     501,
