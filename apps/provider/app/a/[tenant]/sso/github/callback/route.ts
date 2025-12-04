@@ -141,35 +141,35 @@ export async function GET(req: NextRequest) {
   const now = new Date();
   const existingLink = await (prisma as any).externalIdentity.findFirst({ where: { providerId: provider.id, subject: sub } });
   const claims: any = { profile: ghUser };
-  if (existingLink) {
-    user = await (prisma as any).user.findUnique({ where: { id: existingLink.userId } });
-    await (prisma as any).externalIdentity.update({
-      where: { id: existingLink.id },
-      data: { email, claims, lastLoginAt: now },
-    });
-  } else {
-    user = await (prisma as any).user.findUnique({ where: { tenantId_email: { tenantId: tenant.id, email } } });
-    if (!user) {
-      user = await (prisma as any).user.create({ data: { tenantId: tenant.id, email, name: username } });
-    }
-    await (prisma as any).externalIdentity.create({
-      data: {
-        tenantId: tenant.id,
-        userId: user.id,
-        providerId: provider.id,
-        subject: sub,
-        email,
-        claims,
-        lastLoginAt: now,
-      },
-    });
-    linked = true;
-  }
+
+  // Ensure user exists (race-safe)
+  user = await (prisma as any).user.upsert({
+    where: { tenantId_email: { tenantId: tenant.id, email } },
+    update: {},
+    create: { tenantId: tenant.id, email, name: username },
+  });
+
+  // Create or update external identity link (race-safe)
+  await (prisma as any).externalIdentity.upsert({
+    where: { providerId_subject: { providerId: provider.id, subject: sub } },
+    update: { email, claims: claims as any, lastLoginAt: now },
+    create: {
+      tenantId: tenant.id,
+      userId: user.id,
+      providerId: provider.id,
+      subject: sub,
+      email,
+      claims: claims as any,
+      lastLoginAt: now,
+    },
+  });
+  linked = !existingLink;
 
   // Audit events
-  await (prisma as any).audit.create({ data: { tenantId: tenant.id, userId: user.id, action: 'login.sso.github', ip: req.ip || null, userAgent: req.headers.get('user-agent') || null } });
+  const ip = req.ip || req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || null;
+  await (prisma as any).audit.create({ data: { tenantId: tenant.id, userId: user.id, action: 'login.sso.github', ip, userAgent: req.headers.get('user-agent') || null } });
   if (linked) {
-    await (prisma as any).audit.create({ data: { tenantId: tenant.id, userId: user.id, action: 'idp.linked', ip: req.ip || null, userAgent: req.headers.get('user-agent') || null } });
+    await (prisma as any).audit.create({ data: { tenantId: tenant.id, userId: user.id, action: 'idp.linked', ip, userAgent: req.headers.get('user-agent') || null } });
   }
 
   // attach to pending

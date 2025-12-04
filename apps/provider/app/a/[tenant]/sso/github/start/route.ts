@@ -45,7 +45,11 @@ export async function GET(req: NextRequest) {
   const issuer = getIssuerURL();
   const redirectUri = `${issuer}/sso/github/callback`;
 
-  const scope = (provider.scopes && provider.scopes.length > 0 ? provider.scopes : ['read:user', 'user:email']).join(' ');
+  const defaultScopes = ['read:user', 'user:email'];
+  const configured = (provider.scopes || []) as string[];
+  const looksLikeOidc = configured.includes('openid') || configured.includes('profile') || (configured.includes('email') && !configured.includes('user:email'));
+  const chosenScopes = configured.length === 0 || looksLikeOidc ? defaultScopes : configured;
+  const scope = chosenScopes.join(' ');
 
   const authUrl = new URL('https://github.com/login/oauth/authorize');
   authUrl.searchParams.set('client_id', provider.clientId);
