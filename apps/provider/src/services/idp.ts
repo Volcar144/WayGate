@@ -215,3 +215,7 @@ export async function getGoogleProvider(tenantId: string): Promise<IdentityProvi
 export async function getMicrosoftProvider(tenantId: string): Promise<IdentityProviderConfig | null> {
   return getProviderByType(tenantId, 'microsoft');
 }
+
+export async function getGithubProvider(tenantId: string): Promise<IdentityProviderConfig | null> {
+  return getProviderByType(tenantId, 'github');
+}

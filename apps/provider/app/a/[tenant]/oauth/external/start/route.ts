@@ -64,8 +64,13 @@ export async function GET(req: NextRequest) {
     start.searchParams.set('rid', rid);
     return NextResponse.redirect(start.toString());
   }
+  if (provider === 'github') {
+    const start = new URL(`/a/${tenantSlug}/sso/github/start`, u.origin);
+    start.searchParams.set('rid', rid);
+    return NextResponse.redirect(start.toString());
+  }
 
-  const label = provider === 'github' ? 'GitHub' : provider;
+  const label = provider;
   return html(
     `<h1>${escapeHtml(label)} sign-in not yet configured</h1><p>This provider is not implemented yet. Please use magic link instead.</p>`,
     501,
