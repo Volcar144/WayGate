@@ -4,7 +4,7 @@ import { getTenant } from '@/lib/tenant';
 import { findTenantBySlug } from '@/services/jwks';
 import { prisma } from '@/lib/prisma';
 import { isAdminRequest } from '@/utils/admin';
-import { encryptSecret } from '@/services/idp';
+import { encryptSecret, decryptSecret } from '@/services/idp';
 import { getIssuerURL } from '@/utils/issuer';
 
 export const runtime = 'nodejs';
@@ -34,16 +34,25 @@ export async function GET(req: NextRequest) {
   if (!tenant) return NextResponse.json({ error: 'unknown tenant' }, { status: 404 });
 
   const rows = await (prisma as any).identityProvider.findMany({ where: { tenantId: tenant.id } });
-  const result = rows.map((r: any) => ({
-    id: r.id,
-    type: r.type,
-    clientId: r.clientId,
-    issuer: r.issuer,
-    scopes: r.scopes || [],
-    status: r.status,
-    hasSecret: !!r.clientSecretEnc,
-    callbackUrl: buildCallbackUrl(r.type),
-  }));
+  const result = rows.map((r: any) => {
+    let hasSecret = false;
+    try {
+      const val = r.clientSecretEnc ? decryptSecret(r.clientSecretEnc) : '';
+      hasSecret = !!val && val !== 'placeholder';
+    } catch {
+      hasSecret = false;
+    }
+    return {
+      id: r.id,
+      type: r.type,
+      clientId: r.clientId,
+      issuer: r.issuer,
+      scopes: r.scopes || [],
+      status: r.status,
+      hasSecret,
+      callbackUrl: buildCallbackUrl(r.type),
+    };
+  });
 
   // Also include default entries for missing providers to simplify UI
   const types = ['google', 'microsoft', 'github', 'oidc_generic'];
@@ -98,13 +107,20 @@ export async function POST(req: NextRequest) {
   const secretEnc = (data.clientSecret && data.clientSecret.trim() !== '') ? encryptSecret(data.clientSecret) : null;
 
   if (!existing) {
+    // Require client secret on create to avoid storing unusable placeholder values
+    if (!secretEnc) {
+      return NextResponse.json(
+        { error: 'validation_error', details: [{ path: ['clientSecret'], message: 'clientSecret is required when creating a provider' }] },
+        { status: 400 },
+      );
+    }
     // Create new provider
     const created = await (prisma as any).identityProvider.create({
       data: {
         tenantId: tenant.id,
         type: data.type,
         clientId: data.clientId,
-        clientSecretEnc: secretEnc || encryptSecret('placeholder'),
+        clientSecretEnc: secretEnc,
         issuer: data.issuer || '',
         scopes: scopes.length > 0 ? scopes : ['openid', 'email', 'profile'],
         status: data.status || 'disabled',
@@ -139,6 +155,23 @@ export async function PATCH(req: NextRequest) {
 
   const existing = await (prisma as any).identityProvider.findFirst({ where: { tenantId: tenant.id, type } });
   if (!existing) return NextResponse.json({ error: 'not_found' }, { status: 404 });
+
+  // Prevent enabling incomplete providers
+  if (status === 'enabled') {
+    let hasSecret = false;
+    let secretPlain = '';
+    try {
+      secretPlain = existing.clientSecretEnc ? decryptSecret(existing.clientSecretEnc as any) : '';
+      hasSecret = !!secretPlain && secretPlain !== 'placeholder';
+    } catch {
+      hasSecret = false;
+    }
+    const needsIssuer = type === 'microsoft' || type === 'oidc_generic';
+    const complete = !!existing.clientId && hasSecret && (!needsIssuer || !!existing.issuer);
+    if (!complete) {
+      return NextResponse.json({ error: 'incomplete_config', message: 'Cannot enable provider until client id, secret, and required issuer are configured' }, { status: 400 });
+    }
+  }
 
   await (prisma as any).identityProvider.update({ where: { id: existing.id }, data: { status } });
   await (prisma as any).audit.create({ data: { tenantId: tenant.id, userId: null, action: `admin.idp.${status}.${type}`, ip: (req.ip as any) || null, userAgent: req.headers.get('user-agent') || null } });
