@@ -1,4 +1,4 @@
-import { getRedis } from '@/lib/redis';
+import { getTenantRedis } from '@/lib/redis';
 import { env } from '@/env';
 import { z } from 'zod';
 
@@ -118,7 +118,7 @@ export function getRegisterRateLimitConfig(tenant: string) {
  *  - `reset`: timestamp (milliseconds since epoch) when the current window resets.
  */
 export async function rateLimitTake(key: string, limit: number, windowMs: number): Promise<{ allowed: boolean; remaining: number; reset: number }> {
-  const redis = await getRedis();
+  const redis = getTenantRedis();
   if (redis) {
     const n = await redis.incr(key);
     let ttlMs = await redis.pttl(key);
@@ -143,7 +143,7 @@ export async function rateLimitTake(key: string, limit: number, windowMs: number
 }
 
 export function buildTokenRateLimitKeys(args: { tenant: string; clientId?: string | null; ip?: string | null }) {
-  const base = `rl:token:${args.tenant}`;
+  const base = `rl:token`;
   return {
     byIp: `${base}:ip:${args.ip || 'unknown'}`,
     byClient: `${base}:client:${args.clientId || 'unknown'}`,
@@ -151,7 +151,7 @@ export function buildTokenRateLimitKeys(args: { tenant: string; clientId?: strin
 }
 
 export function buildRegisterRateLimitKeys(args: { tenant: string; ip?: string | null }) {
-  const base = `rl:register:${args.tenant}`;
+  const base = `rl:register`;
   return {
     byIp: `${base}:ip:${args.ip || 'unknown'}`,
   };

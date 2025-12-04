@@ -1,6 +1,5 @@
 import { PrismaClient } from '@prisma/client';
 import crypto from 'node:crypto';
-import { ensureActiveKeyForTenant, rotateKeysForTenant } from '../src/services/jwks';
 
 const prisma = new PrismaClient();
 
@@ -20,10 +19,55 @@ async function main() {
   // Key management
   const rotate = (process.env.SEED_ROTATE_KEYS || '').toLowerCase();
   if (rotate === '1' || rotate === 'true' || rotate === 'yes') {
-    await rotateKeysForTenant(tenant.id);
+    // Simple key creation for seed
+    const { generateKeyPair, exportJWK, calculateJwkThumbprint } = await import('jose');
+    const { publicKey, privateKey } = await generateKeyPair('RS256', { modulusLength: 2048 });
+    const publicJwk = await exportJWK(publicKey) as any;
+    const privateJwk = await exportJWK(privateKey) as any;
+    
+    publicJwk.alg = 'RS256';
+    publicJwk.use = 'sig';
+    const kid = await calculateJwkThumbprint(publicJwk, 'sha256');
+    publicJwk.kid = kid;
+    
+    // Simple encryption for demo (not production ready)
+    const privJwkEncrypted = Buffer.from(JSON.stringify(privateJwk)).toString('base64');
+    
+    await prisma.jwkKey.create({
+      data: {
+        tenantId: tenant.id,
+        kid,
+        pubJwk: publicJwk,
+        privJwkEncrypted,
+        status: 'active',
+        notBefore: new Date(),
+      }
+    });
   } else {
-    // Ensure there is at least one active signing key for the tenant
-    await ensureActiveKeyForTenant(tenant.id);
+    // Create a basic active key
+    const { generateKeyPair, exportJWK, calculateJwkThumbprint } = await import('jose');
+    const { publicKey, privateKey } = await generateKeyPair('RS256', { modulusLength: 2048 });
+    const publicJwk = await exportJWK(publicKey) as any;
+    const privateJwk = await exportJWK(privateKey) as any;
+    
+    publicJwk.alg = 'RS256';
+    publicJwk.use = 'sig';
+    const kid = await calculateJwkThumbprint(publicJwk, 'sha256');
+    publicJwk.kid = kid;
+    
+    // Simple encryption for demo (not production ready)
+    const privJwkEncrypted = Buffer.from(JSON.stringify(privateJwk)).toString('base64');
+    
+    await prisma.jwkKey.create({
+      data: {
+        tenantId: tenant.id,
+        kid,
+        pubJwk: publicJwk,
+        privJwkEncrypted,
+        status: 'active',
+        notBefore: new Date(),
+      }
+    });
   }
 
   // Client

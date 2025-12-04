@@ -1,4 +1,17 @@
+import { getTenant } from '@/lib/tenant';
+
 type Level = 'info' | 'warn' | 'error' | 'debug';
+
+type LogContext = {
+  tenantId?: string;
+  tenantSlug?: string;
+  userId?: string;
+  clientId?: string;
+  requestId?: string;
+  ip?: string;
+  userAgent?: string;
+  [key: string]: any;
+};
 
 /**
  * Recursively redacts sensitive information from the given value.
@@ -38,17 +51,75 @@ function redact(input: any): any {
 }
 
 /**
+ * Get tenant context for logging
+ */
+function getTenantContext(): { tenantSlug?: string; tenantId?: string } {
+  try {
+    const tenantSlug = getTenant();
+    if (tenantSlug) {
+      return { tenantSlug };
+    }
+  } catch {
+    // No tenant context available
+  }
+  return {};
+}
+
+/**
+ * Set Sentry extra context with tenant information
+ */
+function setSentryContext(context: LogContext) {
+  try {
+    const Sentry = require('@sentry/nextjs');
+    if (context.tenantSlug) {
+      Sentry.setExtra('tenantSlug', context.tenantSlug);
+    }
+    if (context.tenantId) {
+      Sentry.setExtra('tenantId', context.tenantId);
+    }
+    if (context.userId) {
+      Sentry.setUser({ id: context.userId });
+    }
+    if (context.clientId) {
+      Sentry.setExtra('clientId', context.clientId);
+    }
+    if (context.requestId) {
+      Sentry.setExtra('requestId', context.requestId);
+    }
+  } catch {
+    // Sentry not available
+  }
+}
+
+/**
  * Emit a structured, redacted log entry for the given level, message, and optional metadata.
  *
- * The payload includes `level`, a redacted `msg`, redacted metadata merged into the payload, and a timestamp.
- * If structured JSON output fails, a simple fallback console output is used.
+ * The payload includes `level`, a redacted `msg`, redacted metadata merged into the payload, a timestamp,
+ * and tenant context when available. If structured JSON output fails, a simple fallback console output is used.
  *
  * @param level - Log severity: 'info', 'warn', 'error', or 'debug'
  * @param msg - Message to be logged; sensitive data within the message will be redacted
  * @param meta - Optional metadata object; sensitive fields within will be redacted and included in the payload
  */
 function log(level: Level, msg: string, meta?: Record<string, any>) {
-  const payload = { level, msg: redact(msg), ...redact(meta || {}), ts: new Date().toISOString() };
+  const tenantContext = getTenantContext();
+  const context: LogContext = {
+    ...tenantContext,
+    ...meta
+  };
+
+  // Set Sentry context for error/warn levels
+  if (level === 'error' || level === 'warn') {
+    setSentryContext(context);
+  }
+
+  const payload = { 
+    level, 
+    msg: redact(msg), 
+    ...redact(context), 
+    ts: new Date().toISOString() 
+  };
+  
   try {
     // Use JSON for structured logging
     // eslint-disable-next-line no-console
