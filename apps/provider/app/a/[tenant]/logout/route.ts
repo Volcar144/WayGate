@@ -22,11 +22,21 @@ export async function POST(req: NextRequest) {
 
   // Try to parse JSON, fallback to form data
   let payload: any = null;
-  try { payload = await req.json(); } catch (e) { Sentry?.captureException?.(e); console.error('Failed to parse JSON payload for logout', e); }
+  try {
+    payload = await req.json();
+  } catch (e) {
+    Sentry?.captureException?.(e);
+    console.error('Failed to parse JSON payload for logout', e);
+    payload = null;
+  }
   if (!payload) {
     try {
-      const fd = await req.formData();
-      payload = Object.fromEntries(Array.from(fd.entries()) as [string, string][]);
+      payload = await req.json();
+    } catch (e) {
+      Sentry?.captureException?.(e);
+      console.error('Failed to parse JSON payload for logout', e);
+      payload = null;
+    }
     } catch (e) { Sentry?.captureException?.(e); console.error('Failed to parse form data payload for logout', e); }
   }
 
