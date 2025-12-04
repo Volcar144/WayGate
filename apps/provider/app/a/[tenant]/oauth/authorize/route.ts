@@ -140,16 +140,18 @@ export async function GET(req: NextRequest) {
   const envProviders = (process.env.SSO_PROVIDERS || '').split(',').map((s) => s.trim().toLowerCase()).filter(Boolean);
   // Intentionally using dynamic import to avoid bundling Prisma in edge runtime for this route.
   const dbProviders: string[] = (await (await import('@/services/idp')).getEnabledProviderTypesForTenant(tenant.id)).map((s) => s.toLowerCase());
-  const supported = ['google', 'microsoft', 'github'];
+  const supported = ['google', 'microsoft', 'github', 'oidc_generic'];
   const enabledProviders = Array.from(new Set([...supported.filter((p) => envProviders.includes(p)), ...supported.filter((p) => dbProviders.includes(p))]));
   const providerButtons = enabledProviders
     .map((p) => {
-      const label = p === 'google' ? 'Google' : p === 'microsoft' ? 'Microsoft' : 'GitHub';
+      const label = p === 'google' ? 'Google' : p === 'microsoft' ? 'Microsoft' : p === 'github' ? 'GitHub' : 'OIDC';
       const icon = p === 'google'
         ? '<svg width="18" height="18" viewBox="0 0 48 48" fill="none" aria-hidden="true"><path fill="#FFC107" d="M43.611,20.083H42V20H24v8h11.303c-1.649,4.657-6.08,8-11.303,8c-6.627,0-12-5.373-12-12 s5.373-12,12-12c3.059,0,5.842,1.154,7.957,3.043l5.657-5.657C32.163,6.053,28.284,4,24,4C12.955,4,4,12.955,4,24 s8.955,20,20,20s20-8.955,20-20C44,22.659,43.862,21.35,43.611,20.083z"/><path fill="#FF3D00" d="M6.306,14.691l6.571,4.819C14.655,16.108,18.961,14,24,14c3.059,0,5.842,1.154,7.957,3.043l5.657-5.657 C32.163,6.053,28.284,4,24,4C16.318,4,9.656,8.337,6.306,14.691z"/><path fill="#4CAF50" d="M24,44c5.176,0,9.86-1.977,13.409-5.197l-6.191-5.238C29.211,35.091,26.715,36,24,36 c-5.201,0-9.616-3.317-11.276-7.946l-6.51,5.02C9.505,39.556,16.227,44,24,44z"/><path fill="#1976D2" d="M43.611,20.083H42V20H24v8h11.303c-0.792,2.237-2.231,4.166-4.093,5.565 c0.001-0.001,0.002-0.001,0.003-0.002l6.19,5.237C36.971,39.792,44,35,44,24C44,22.659,43.862,21.35,43.611,20.083z"/></svg>'
         : p === 'microsoft'
         ? '<svg width="18" height="18" viewBox="0 0 23 23" aria-hidden="true"><rect width="10" height="10" x="1" y="1" fill="#f25022"/><rect width="10" height="10" x="12" y="1" fill="#7fba00"/><rect width="10" height="10" x="1" y="12" fill="#00a4ef"/><rect width="10" height="10" x="12" y="12" fill="#ffb900"/></svg>'
-        : '<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .5C5.73.5.98 5.24.98 11.5c0 4.84 3.14 8.94 7.49 10.39.55.1.76-.24.76-.54 0-.27-.01-1.17-.02-2.12-3.05.66-3.69-1.3-3.69-1.3-.5-1.28-1.22-1.62-1.22-1.62-.99-.67.08-.66.08-.66 1.09.08 1.66 1.12 1.66 1.12.98 1.67 2.57 1.19 3.2.91.1-.71.38-1.19.69-1.46-2.44-.28-5-1.22-5-5.43 0-1.2.43-2.18 1.12-2.95-.11-.28-.49-1.41.11-2.93 0 0 .92-.29 3.02 1.12.87-.24 1.8-.36 2.73-.36.93 0 1.86.12 2.73.36 2.1-1.41 3.02-1.12 3.02-1.12.6 1.52.22 2.65.11 2.93.69.77 1.12 1.75 1.12 2.95 0 4.22-2.57 5.15-5.02 5.43.39.34.74 1.02.74 2.06 0 1.49-.01 2.69-.01 3.06 0 .3.2.65.76.54A10.51 10.51 0 0 0 23 11.5C23 5.24 18.27.5 12 .5z"/></svg>';
+        : p === 'github'
+        ? '<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .5C5.73.5.98 5.24.98 11.5c0 4.84 3.14 8.94 7.49 10.39.55.1.76-.24.76-.54 0-.27-.01-1.17-.02-2.12-3.05.66-3.69-1.3-3.69-1.3-.5-1.28-1.22-1.62-1.22-1.62-.99-.67.08-.66.08-.66 1.09.08 1.66 1.12 1.66 1.12.98 1.67 2.57 1.19 3.2.91.1-.71.38-1.19.69-1.46-2.44-.28-5-1.22-5-5.43 0-1.2.43-2.18 1.12-2.95-.11-.28-.49-1.41.11-2.93 0 0 .92-.29 3.02 1.12.87-.24 1.8-.36 2.73-.36.93 0 1.86.12 2.73.36 2.1-1.41 3.02-1.12 3.02-1.12.6 1.52.22 2.65.11 2.93.69.77 1.12 1.75 1.12 2.95 0 4.22-2.57 5.15-5.02 5.43.39.34.74 1.02.74 2.06 0 1.49-.01 2.69-.01 3.06 0 .3.2.65.76.54A10.51 10.51 0 0 0 23 11.5C23 5.24 18.27.5 12 .5z"/></svg>'
+        : '<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2" fill="none"/></svg>';
       return `<button type=\"button\" class=\"secondary provider\" data-provider=\"${p}\" aria-label=\"Continue with ${label}\"><span style=\"display:inline-flex;gap:8px;align-items:center\">${icon}<span>${label}</span></span></button>`;
     })
     .join('');

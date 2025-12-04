@@ -219,3 +219,7 @@ export async function getMicrosoftProvider(tenantId: string): Promise<IdentityPr
 export async function getGithubProvider(tenantId: string): Promise<IdentityProviderConfig | null> {
   return getProviderByType(tenantId, 'github');
 }
+
+export async function getOidcGenericProvider(tenantId: string): Promise<IdentityProviderConfig | null> {
+  return getProviderByType(tenantId, 'oidc_generic');
+}
