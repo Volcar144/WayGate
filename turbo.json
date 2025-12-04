@@ -1,6 +1,6 @@
 {
   "$schema": "https://turbo.build/schema.json",
-  "pipeline": {
+  "tasks": {
     "build": {
       "dependsOn": ["prisma:generate","^build"],
       "outputs": [".next/**", "dist/**", "build/**"]
