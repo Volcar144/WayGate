@@ -1,0 +1,167 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
+import { getTenant } from '@/lib/tenant';
+import { findTenantBySlug } from '@/services/jwks';
+import { prisma } from '@/lib/prisma';
+import { isAdminRequest } from '@/utils/admin';
+import { encryptSecret } from '@/services/idp';
+import { getIssuerURL } from '@/utils/issuer';
+
+export const runtime = 'nodejs';
+
+const typeSchema = z.enum(['google', 'microsoft', 'github', 'oidc_generic']);
+
+const upsertSchema = z.object({
+  type: typeSchema,
+  clientId: z.string().min(1),
+  clientSecret: z.string().optional(),
+  issuer: z.string().url().optional(),
+  scopes: z.union([z.array(z.string()).transform((a) => a.filter(Boolean)), z.string().transform((s) => s.split(/\s+/).filter(Boolean))]).optional(),
+  status: z.enum(['enabled', 'disabled']).optional(),
+});
+
+function buildCallbackUrl(type: string): string {
+  const issuer = getIssuerURL();
+  return `${issuer}/sso/${type}/callback`;
+}
+
+export async function GET(req: NextRequest) {
+  const tenantSlug = getTenant();
+  if (!tenantSlug) return NextResponse.json({ error: 'missing tenant' }, { status: 400 });
+  if (!isAdminRequest(req)) return NextResponse.json({ error: 'forbidden' }, { status: 403 });
+
+  const tenant = await findTenantBySlug(tenantSlug);
+  if (!tenant) return NextResponse.json({ error: 'unknown tenant' }, { status: 404 });
+
+  const rows = await (prisma as any).identityProvider.findMany({ where: { tenantId: tenant.id } });
+  const result = rows.map((r: any) => ({
+    id: r.id,
+    type: r.type,
+    clientId: r.clientId,
+    issuer: r.issuer,
+    scopes: r.scopes || [],
+    status: r.status,
+    hasSecret: !!r.clientSecretEnc,
+    callbackUrl: buildCallbackUrl(r.type),
+  }));
+
+  // Also include default entries for missing providers to simplify UI
+  const types = ['google', 'microsoft', 'github', 'oidc_generic'];
+  const byType = new Map(result.map((r: any) => [r.type, r]));
+  const enriched = types.map((t) => byType.get(t) || { id: null, type: t, clientId: '', issuer: '', scopes: [], status: 'disabled', hasSecret: false, callbackUrl: buildCallbackUrl(t) });
+
+  return NextResponse.json({ ok: true, providers: enriched });
+}
+
+export async function POST(req: NextRequest) {
+  const tenantSlug = getTenant();
+  if (!tenantSlug) return NextResponse.json({ error: 'missing tenant' }, { status: 400 });
+  if (!isAdminRequest(req)) return NextResponse.json({ error: 'forbidden' }, { status: 403 });
+  const tenant = await findTenantBySlug(tenantSlug);
+  if (!tenant) return NextResponse.json({ error: 'unknown tenant' }, { status: 404 });
+
+  let payload: any = {};
+  try {
+    payload = await req.json();
+  } catch {}
+  const parsed = upsertSchema.safeParse(payload);
+  if (!parsed.success) return NextResponse.json({ error: 'validation_error', details: parsed.error.issues }, { status: 400 });
+  const data = parsed.data;
+
+  if ((data.type === 'microsoft' || data.type === 'oidc_generic')) {
+    if (!data.issuer) return NextResponse.json({ error: 'validation_error', details: [{ path: ['issuer'], message: 'issuer is required for microsoft and oidc_generic' }] }, { status: 400 });
+  }
+  if (data.type === 'google') {
+    if (!data.clientId.endsWith('.apps.googleusercontent.com')) {
+      // soft warning only
+    }
+  }
+
+  // Optional: validate issuer discovery for microsoft/oidc
+  if (data.issuer && (data.type === 'microsoft' || data.type === 'oidc_generic')) {
+    try {
+      const wellKnown = data.issuer.replace(/\/$/, '') + '/.well-known/openid-configuration';
+      const resp = await fetch(wellKnown, { headers: { accept: 'application/json' }, signal: AbortSignal.timeout(10_000) });
+      if (!resp.ok) return NextResponse.json({ error: 'invalid_issuer', message: 'Could not fetch discovery document' }, { status: 400 });
+      const json = await resp.json();
+      if (!json || typeof json.authorization_endpoint !== 'string' || typeof json.token_endpoint !== 'string') {
+        return NextResponse.json({ error: 'invalid_issuer', message: 'Issuer missing required OIDC endpoints' }, { status: 400 });
+      }
+    } catch {
+      return NextResponse.json({ error: 'invalid_issuer', message: 'Failed to validate issuer' }, { status: 400 });
+    }
+  }
+
+  const scopes = Array.isArray(data.scopes) ? data.scopes : (typeof data.scopes === 'string' ? data.scopes.split(/\s+/).filter(Boolean) : []);
+
+  const existing = await (prisma as any).identityProvider.findFirst({ where: { tenantId: tenant.id, type: data.type } });
+  const secretEnc = (data.clientSecret && data.clientSecret.trim() !== '') ? encryptSecret(data.clientSecret) : null;
+
+  if (!existing) {
+    // Create new provider
+    const created = await (prisma as any).identityProvider.create({
+      data: {
+        tenantId: tenant.id,
+        type: data.type,
+        clientId: data.clientId,
+        clientSecretEnc: secretEnc || encryptSecret('placeholder'),
+        issuer: data.issuer || '',
+        scopes: scopes.length > 0 ? scopes : ['openid', 'email', 'profile'],
+        status: data.status || 'disabled',
+      },
+    });
+    await (prisma as any).audit.create({ data: { tenantId: tenant.id, userId: null, action: `admin.idp.create.${data.type}`, ip: (req.ip as any) || null, userAgent: req.headers.get('user-agent') || null } });
+    return NextResponse.json({ ok: true, id: created.id });
+  }
+
+  // Update existing
+  const updateData: any = { clientId: data.clientId, issuer: data.issuer ?? existing.issuer, scopes: scopes.length > 0 ? scopes : existing.scopes };
+  if (secretEnc) updateData.clientSecretEnc = secretEnc;
+  if (data.status) updateData.status = data.status;
+
+  await (prisma as any).identityProvider.update({ where: { id: existing.id }, data: updateData });
+  await (prisma as any).audit.create({ data: { tenantId: tenant.id, userId: null, action: `admin.idp.update.${data.type}`, ip: (req.ip as any) || null, userAgent: req.headers.get('user-agent') || null } });
+  return NextResponse.json({ ok: true });
+}
+
+export async function PATCH(req: NextRequest) {
+  const tenantSlug = getTenant();
+  if (!tenantSlug) return NextResponse.json({ error: 'missing tenant' }, { status: 400 });
+  if (!isAdminRequest(req)) return NextResponse.json({ error: 'forbidden' }, { status: 403 });
+  const tenant = await findTenantBySlug(tenantSlug);
+  if (!tenant) return NextResponse.json({ error: 'unknown tenant' }, { status: 404 });
+
+  let payload: any = {};
+  try { payload = await req.json(); } catch {}
+  const parsed = z.object({ type: typeSchema, status: z.enum(['enabled', 'disabled']) }).safeParse(payload);
+  if (!parsed.success) return NextResponse.json({ error: 'validation_error', details: parsed.error.issues }, { status: 400 });
+  const { type, status } = parsed.data;
+
+  const existing = await (prisma as any).identityProvider.findFirst({ where: { tenantId: tenant.id, type } });
+  if (!existing) return NextResponse.json({ error: 'not_found' }, { status: 404 });
+
+  await (prisma as any).identityProvider.update({ where: { id: existing.id }, data: { status } });
+  await (prisma as any).audit.create({ data: { tenantId: tenant.id, userId: null, action: `admin.idp.${status}.${type}`, ip: (req.ip as any) || null, userAgent: req.headers.get('user-agent') || null } });
+  return NextResponse.json({ ok: true });
+}
+
+export async function DELETE(req: NextRequest) {
+  const tenantSlug = getTenant();
+  if (!tenantSlug) return NextResponse.json({ error: 'missing tenant' }, { status: 400 });
+  if (!isAdminRequest(req)) return NextResponse.json({ error: 'forbidden' }, { status: 403 });
+  const tenant = await findTenantBySlug(tenantSlug);
+  if (!tenant) return NextResponse.json({ error: 'unknown tenant' }, { status: 404 });
+
+  let payload: any = {};
+  try { payload = await req.json(); } catch {}
+  const parsed = z.object({ type: typeSchema }).safeParse(payload);
+  if (!parsed.success) return NextResponse.json({ error: 'validation_error', details: parsed.error.issues }, { status: 400 });
+
+  const { type } = parsed.data;
+  const existing = await (prisma as any).identityProvider.findFirst({ where: { tenantId: tenant.id, type } });
+  if (!existing) return NextResponse.json({ ok: true });
+
+  await (prisma as any).identityProvider.delete({ where: { id: existing.id } });
+  await (prisma as any).audit.create({ data: { tenantId: tenant.id, userId: null, action: `admin.idp.delete.${type}`, ip: (req.ip as any) || null, userAgent: req.headers.get('user-agent') || null } });
+  return NextResponse.json({ ok: true });
+}

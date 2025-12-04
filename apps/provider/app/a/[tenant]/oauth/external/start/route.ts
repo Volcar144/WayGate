@@ -36,7 +36,7 @@ export async function GET(req: NextRequest) {
     .split(',')
     .map((s) => s.trim().toLowerCase())
     .filter(Boolean);
-  const supported = ['google', 'microsoft', 'github'];
+  const supported = ['google', 'microsoft', 'github', 'oidc_generic'];
   let enabled = supported.includes(provider) && envProviders.includes(provider);
   try {
     const { findTenantBySlug } = await import('@/services/jwks');
@@ -66,6 +66,11 @@ export async function GET(req: NextRequest) {
   }
   if (provider === 'github') {
     const start = new URL(`/a/${tenantSlug}/sso/github/start`, u.origin);
+    start.searchParams.set('rid', rid);
+    return NextResponse.redirect(start.toString());
+  }
+  if (provider === 'oidc_generic') {
+    const start = new URL(`/a/${tenantSlug}/sso/oidc_generic/start`, u.origin);
     start.searchParams.set('rid', rid);
     return NextResponse.redirect(start.toString());
   }
