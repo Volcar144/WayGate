@@ -1,6 +1,8 @@
 import { randomBytes } from 'node:crypto';
 import { prisma } from '@/lib/prisma';
-import { getRedis } from '@/lib/redis';
+import { getTenantRedis, namespacedChannel } from '@/lib/redis';
+import { getTenant } from '@/lib/tenant';
+import { tenantClientRepo } from '@/lib/tenant-repo';
 
 export type PendingAuthRequest = {
   rid: string;
@@ -93,6 +95,15 @@ function channelSSE(rid: string) {
   return `authz:sse:${rid}`;
 }
 
+// Helper to get tenant Redis instance
+function getTenantRedisInstance() {
+  const tenantSlug = getTenant();
+  if (!tenantSlug) {
+    throw new Error('Tenant context required for auth operations');
+  }
+  return getTenantRedis(tenantSlug);
+}
+
 export async function createPendingAuthRequest(
   params: Omit<PendingAuthRequest, 'rid' | 'createdAt' | 'expiresAt' | 'userId' | 'completed'> & { ttlMs?: number },
 ): Promise<PendingAuthRequest> {
@@ -108,7 +119,7 @@ export async function createPendingAuthRequest(
     completed: false,
   };
 
-  const redis = await getRedis();
+  const redis = getTenantRedisInstance();
   if (redis) {
     const ttlSec = Math.max(1, Math.ceil(ttl / 1000));
     await redis.set(keyPending(rid), JSON.stringify(req), 'EX', ttlSec);
@@ -127,7 +138,7 @@ export async function createPendingAuthRequest(
  */
 export async function getPending(rid: string | null | undefined): Promise<PendingAuthRequest | null> {
   if (!rid) return null;
-  const redis = await getRedis();
+  const redis = getTenantRedisInstance();
   if (redis) {
     const raw = await redis.get(keyPending(rid));
     if (!raw) return null;
@@ -158,7 +169,7 @@ export async function getPending(rid: string | null | undefined): Promise<Pendin
  * @returns The updated `PendingAuthRequest` when the request is found and updated, or `null` if no valid pending request exists.
  */
 export async function setPendingUser(rid: string, userId: string): Promise<PendingAuthRequest | null> {
-  const redis = await getRedis();
+  const redis = getTenantRedisInstance();
   if (redis) {
     const key = keyPending(rid);
     const raw = await redis.get(key);
@@ -192,7 +203,7 @@ export async function setPendingUser(rid: string, userId: string): Promise<Pendi
  * @returns The updated `PendingAuthRequest` if found and updated, `null` if not found or the stored entry could not be parsed
  */
 export async function completePending(rid: string): Promise<PendingAuthRequest | null> {
-  const redis = await getRedis();
+  const redis = getTenantRedisInstance();
   if (redis) {
     const key = keyPending(rid);
     const raw = await redis.get(key);
@@ -238,7 +249,7 @@ export function unsubscribeSSE(rid: string, writer: WritableStreamDefaultWriter)
  * @param data - The event payload to deliver to subscribers
  */
 export async function publishSSE(rid: string, event: string, data: any) {
-  const redis = await getRedis();
+  const redis = getTenantRedisInstance();
   if (redis) {
     const payload = JSON.stringify({ event, data });
     await redis.publish(channelSSE(rid), payload);
@@ -275,7 +286,7 @@ export async function issueMagicToken(params: { tenantId: string; tenantSlug: st
     used: false,
   };
 
-  const redis = await getRedis();
+  const redis = getTenantRedis(params.tenantSlug);
   if (redis) {
     const key = keyMagic(token);
     await redis.set(key, JSON.stringify(mt), 'EX', Math.max(1, Math.ceil(ttl / 1000)));
@@ -295,20 +306,27 @@ export async function issueMagicToken(params: { tenantId: string; tenantSlug: st
  * @returns The consumed `MagicToken` if the token existed and was valid; `null` if the token does not exist, has already been used, or has expired
  */
 export async function consumeMagicToken(token: string): Promise<MagicToken | null> {
-  const redis = await getRedis();
+  // First, try to find which tenant this token belongs to by checking all tenants
+  // This is a limitation of the current design - in future, we should include tenant info in the token itself
+  const tenantSlug = getTenant();
+  if (!tenantSlug) {
+    throw new Error('Tenant context required to consume magic token');
+  }
+  
+  const redis = getTenantRedis(tenantSlug);
   if (redis) {
     const key = keyMagic(token);
     try {
-      const raw = await (redis as any).getdel(key);
+      const raw = await redis.getdel(key);
       if (!raw) return null;
-      const mt = JSON.parse(raw as string) as MagicToken;
+      const mt = JSON.parse(raw) as MagicToken;
       return mt;
     } catch (e) {
       try { const Sentry = require('@sentry/nextjs'); Sentry.captureException(e); } catch {}
       // Fallback if GETDEL not supported
       try {
-        const res = await (redis as any).multi().get(key).del(key).exec();
-        const raw = res?.[0]?.[1] as string | null;
+        const result = await redis.multi().get(key).del(key).exec();
+        const raw = result?.[0]?.[1] as string | null;
         if (!raw) return null;
         const mt = JSON.parse(raw) as MagicToken;
         return mt;
@@ -397,17 +415,15 @@ export async function findClient(tenantId: string, clientId: string): Promise<{
   grantTypes: string[];
   firstParty: boolean;
 } | null> {
-  const c = await (prisma as any).client.findUnique({
-    where: { tenantId_clientId: { tenantId, clientId } },
-  });
-  if (!c) return null;
+  const client = await tenantClientRepo.findUnique(tenantId, clientId);
+  if (!client) return null;
   return {
-    id: c.id,
-    name: c.name,
-    clientId: c.clientId,
-    redirectUris: c.redirectUris as string[],
-    grantTypes: c.grantTypes as string[],
-    firstParty: c.firstParty as boolean,
+    id: client.id,
+    name: client.name,
+    clientId: client.clientId,
+    redirectUris: client.redirectUris as string[],
+    grantTypes: client.grantTypes as string[],
+    firstParty: client.firstParty as boolean,
   };
 }
 

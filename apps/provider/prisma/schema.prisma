@@ -16,6 +16,9 @@ model Tenant {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  // Tenant branding and configuration
+  settings   TenantSettings?
+  
   users               User[]
   clients             Client[]
   keys                JwkKey[]
@@ -26,6 +29,8 @@ model Tenant {
   consents            Consent[]
   identityProviders   IdentityProvider[]
   externalIdentities  ExternalIdentity[]
+  roles               TenantRole[]
+  userRoles           UserRole[]
 }
 
 model User {
@@ -43,6 +48,7 @@ model User {
   audits              Audit[]
   authCodes           AuthCode[]
   externalIdentities  ExternalIdentity[]
+  userRoles           UserRole[]
 
   @@unique([tenantId, email])
   @@index([tenantId])
@@ -239,4 +245,68 @@ model ExternalIdentity {
   @@index([tenantId])
   @@index([userId])
   @@index([email])
+}
+
+// Tenant branding and configuration settings
+model TenantSettings {
+  id              String   @id @default(uuid()) @db.Uuid
+  tenantId        String   @unique @db.Uuid
+  
+  // Branding
+  displayName     String?  // Human-readable display name
+  logoUrl         String?  // URL to tenant logo
+  brandColor      String?  // Primary brand color (hex)
+  theme           Json?    // Theme configuration (light/dark mode, etc.)
+  
+  // Contact and policy
+  contactEmail    String?  // Contact email for support
+  privacyPolicyUrl String? // Privacy policy URL
+  termsOfServiceUrl String? // Terms of service URL
+  
+  // Rate limiting configuration
+  rateLimitConfig Json?    // Per-tenant rate limit overrides
+  
+  // SSO configuration
+  ssoConfig       Json?    // SSO-specific settings per tenant
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  tenant          Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+}
+
+// RBAC: Tenant-specific roles
+model TenantRole {
+  id          String   @id @default(uuid()) @db.Uuid
+  tenantId    String   @db.Uuid
+  name        String   // e.g., 'tenant_admin', 'tenant_viewer'
+  description String?
+  permissions Json     // Array of permission strings
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant      Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  userRoles   UserRole[]
+
+  @@unique([tenantId, name])
+  @@index([tenantId])
+}
+
+// RBAC: User role assignments within tenants
+model UserRole {
+  id        String   @id @default(uuid()) @db.Uuid
+  tenantId  String   @db.Uuid
+  userId    String   @db.Uuid
+  roleId    String   @db.Uuid
+  assignedBy String? @db.Uuid // User who assigned this role
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant    Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role      TenantRole @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, userId, roleId])
+  @@index([tenantId])
+  @@index([userId])
 }

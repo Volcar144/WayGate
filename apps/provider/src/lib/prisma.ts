@@ -1,4 +1,5 @@
 import { PrismaClient } from '@prisma/client';
+import { applyTenantIsolation } from './tenant-middleware';
 
 // In development, use a global cached instance to prevent exhausting database connections
 const globalForPrisma = global as unknown as { prisma: PrismaClient | undefined };
@@ -8,6 +9,9 @@ export const prisma: PrismaClient =
   new PrismaClient({
     log: process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error']
   });
+
+// Apply tenant isolation middleware
+applyTenantIsolation(prisma);
 
 // Sentry DB breadcrumbs
 try {

@@ -6,6 +6,8 @@ import { prisma } from '@/lib/prisma';
 import { getAuthCodeMeta, consumeAuthCodeMeta, newToken } from '@/services/authz';
 import { signAccessToken, signIdToken } from '@/services/tokens';
 import { buildTokenRateLimitKeys, rateLimitTake, getTokenRateLimitConfig } from '@/services/ratelimit';
+import { tenantClientRepo, tenantAuditRepo, verifyTenantOwnership } from '@/lib/tenant-repo';
+import { logger } from '@/utils/logger';
 import { createHash } from 'node:crypto';
 
 export const runtime = 'nodejs';
@@ -68,8 +70,13 @@ export async function POST(req: NextRequest) {
   if (!ipLimit.allowed) return NextResponse.json({ error: 'rate_limited' }, { status: 429 });
 
   if (!clientId) return oidcError('invalid_client', 'missing client_id');
-  const client = await (prisma as any).client.findUnique({ where: { tenantId_clientId: { tenantId: tenant.id, clientId } } });
-  if (!client) return oidcError('unauthorized_client', 'client not found');
+  
+  // Use tenant repository for client lookup with automatic tenant isolation
+  const client = await tenantClientRepo.findUnique(tenant.id, clientId);
+  if (!client) {
+    logger.warn('Client not found', { tenantSlug, clientId, ip });
+    return oidcError('unauthorized_client', 'client not found');
+  }
 
   const clientLimit = await rateLimitTake(rlKeys.byClient, rlCfg.clientLimit, rlCfg.windowMs);
   if (!clientLimit.allowed) return NextResponse.json({ error: 'rate_limited' }, { status: 429 });
@@ -152,14 +159,12 @@ export async function POST(req: NextRequest) {
       console.error('Failed to persist refresh meta', e);
     }
 
-    await (prisma as any).audit.create({
-      data: {
-        tenantId: tenant.id,
-        userId: codeRow.userId,
-        action: 'token.exchange',
-        ip: ip || null,
-        userAgent: req.headers.get('user-agent') || null,
-      },
+    // Log token exchange with tenant context
+    await tenantAuditRepo.create(tenant.id, {
+      userId: codeRow.userId,
+      action: 'token.exchange',
+      ip: ip || null,
+      userAgent: req.headers.get('user-agent') || null,
     });
 
     return NextResponse.json({
@@ -177,11 +182,17 @@ export async function POST(req: NextRequest) {
     const parse = schema.safeParse({ grant_type: grantType, refresh_token: String(form.get('refresh_token') || '') });
     if (!parse.success) return oidcError('invalid_request', 'invalid parameters');
 
-    const rt = await (prisma as any).refreshToken.findUnique({ where: { token: parse.data.refresh_token } });
-    if (!rt || rt.tenantId !== tenant.id) return oidcError('invalid_grant', 'invalid refresh_token');
+    const rt = await prisma.refreshToken.findUnique({ where: { token: parse.data.refresh_token } });
+    if (!rt || rt.tenantId !== tenant.id) {
+      logger.warn('Invalid refresh token attempt', { tenantSlug, ip });
+      return oidcError('invalid_grant', 'invalid refresh_token');
+    }
 
-    // Validate client binding
-    if (rt.clientId !== client.id) return oidcError('invalid_client', 'refresh token not issued to this client');
+    // Verify client binding
+    if (rt.clientId !== client.id) {
+      logger.warn('Refresh token client mismatch', { tenantSlug, clientId, tokenClientId: rt.clientId });
+      return oidcError('invalid_client', 'refresh token not issued to this client');
+    }
 
     if (rt.revoked) {
       // Reuse detected => revoke session
@@ -229,7 +240,13 @@ export async function POST(req: NextRequest) {
     const at = await signAccessToken({ tenantId: tenant.id, sub: userId, clientId: client.clientId, scope });
     const idt = await signIdToken({ tenantId: tenant.id, sub: userId, clientId: client.clientId, authTime: Math.floor(new Date(session.createdAt).getTime() / 1000) });
 
-    await (prisma as any).audit.create({ data: { tenantId: tenant.id, userId, action: 'token.refresh', ip: ip || null, userAgent: req.headers.get('user-agent') || null } });
+    // Log token refresh with tenant context
+    await tenantAuditRepo.create(tenant.id, {
+      userId,
+      action: 'token.refresh',
+      ip: ip || null,
+      userAgent: req.headers.get('user-agent') || null,
+    });
 
     return NextResponse.json({
       token_type: 'Bearer',

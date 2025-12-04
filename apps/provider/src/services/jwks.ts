@@ -3,6 +3,9 @@ import { env } from '@/env';
 import { createCipheriv, createDecipheriv, randomBytes, createHash } from 'node:crypto';
 import { exportJWK, generateKeyPair, calculateJwkThumbprint, JWK } from 'jose';
 
+// Export the prisma instance for use in seed
+export { prisma };
+
 export type KeyStatus = 'staged' | 'active' | 'retired';
 
 // AES-256-GCM helpers
