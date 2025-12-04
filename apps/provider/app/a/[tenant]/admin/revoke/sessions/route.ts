@@ -41,7 +41,7 @@ export async function POST(req: NextRequest) {
           (prisma as any).session.updateMany({ where: { id: { in: ids } }, data: { expiresAt: new Date() } }),
         ]);
       }
-      await (prisma as any).audit.create({ data: { tenantId: tenant.id, userId, action: 'admin.revoke_user_sessions', ip: (req.ip as any) || null, userAgent: req.headers.get('user-agent') || null } });
+      await (prisma as any).audit.create({ data: { tenantId: tenant.id, userId, action: 'admin.revoke_user_sessions', ip: req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || null, userAgent: req.headers.get('user-agent') || null } });
     } else {
       // Revoke all sessions for tenant
       const sessions = await (prisma as any).session.findMany({ where: { tenantId: tenant.id } });
@@ -52,7 +52,7 @@ export async function POST(req: NextRequest) {
           (prisma as any).session.updateMany({ where: { id: { in: ids } }, data: { expiresAt: new Date() } }),
         ]);
       }
-      await (prisma as any).audit.create({ data: { tenantId: tenant.id, userId: null, action: 'admin.revoke_all_sessions', ip: (req.ip as any) || null, userAgent: req.headers.get('user-agent') || null } });
+      await (prisma as any).audit.create({ data: { tenantId: tenant.id, userId: null, action: 'admin.revoke_all_sessions', ip: req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || null, userAgent: req.headers.get('user-agent') || null } });
     }
   } catch (e) {
     return NextResponse.json({ error: 'server_error' }, { status: 500 });

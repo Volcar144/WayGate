@@ -32,10 +32,10 @@ export async function POST(req: NextRequest) {
     const now = new Date();
     if (kid) {
       await (prisma as any).jwkKey.updateMany({ where: { tenantId: tenant.id, kid }, data: { status: 'retired', notAfter: now } });
-      await (prisma as any).audit.create({ data: { tenantId: tenant.id, userId: null, action: 'admin.revoke_key', ip: (req.ip as any) || null, userAgent: req.headers.get('user-agent') || null } });
+      await (prisma as any).audit.create({ data: { tenantId: tenant.id, userId: null, action: 'admin.revoke_key', ip: req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || null, userAgent: req.headers.get('user-agent') || null } });
     } else {
       await (prisma as any).jwkKey.updateMany({ where: { tenantId: tenant.id, status: 'active' }, data: { status: 'retired', notAfter: now } });
-      await (prisma as any).audit.create({ data: { tenantId: tenant.id, userId: null, action: 'admin.revoke_all_keys', ip: (req.ip as any) || null, userAgent: req.headers.get('user-agent') || null } });
+      await (prisma as any).audit.create({ data: { tenantId: tenant.id, userId: null, action: 'admin.revoke_all_keys', ip: req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || null, userAgent: req.headers.get('user-agent') || null } });
     }
   } catch (e) {
     return NextResponse.json({ error: 'server_error' }, { status: 500 });

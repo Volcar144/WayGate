@@ -72,10 +72,12 @@ export async function POST(req: NextRequest) {
   let payload: any = {};
   try {
     payload = await req.json();
-  } catch {}
+  } catch {
+    // ignore JSON parse errors
+  }
   const parsed = upsertSchema.safeParse(payload);
   if (!parsed.success) return NextResponse.json({ error: 'validation_error', details: parsed.error.issues }, { status: 400 });
-  const data = parsed.data;
+  const data: any = parsed.data;
 
   if ((data.type === 'microsoft' || data.type === 'oidc_generic')) {
     if (!data.issuer) return NextResponse.json({ error: 'validation_error', details: [{ path: ['issuer'], message: 'issuer is required for microsoft and oidc_generic' }] }, { status: 400 });
@@ -126,7 +128,7 @@ export async function POST(req: NextRequest) {
         status: data.status || 'disabled',
       },
     });
-    await (prisma as any).audit.create({ data: { tenantId: tenant.id, userId: null, action: `admin.idp.create.${data.type}`, ip: (req.ip as any) || null, userAgent: req.headers.get('user-agent') || null } });
+    await (prisma as any).audit.create({ data: { tenantId: tenant.id, userId: null, action: `admin.idp.create.${data.type}`, ip: req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || null, userAgent: req.headers.get('user-agent') || null } });
     return NextResponse.json({ ok: true, id: created.id });
   }
 
@@ -141,7 +143,7 @@ export async function POST(req: NextRequest) {
   if (data.status) updateData.status = data.status;
 
   await (prisma as any).identityProvider.update({ where: { id: existing.id }, data: updateData });
-  await (prisma as any).audit.create({ data: { tenantId: tenant.id, userId: null, action: `admin.idp.update.${data.type}`, ip: (req.ip as any) || null, userAgent: req.headers.get('user-agent') || null } });
+  await (prisma as any).audit.create({ data: { tenantId: tenant.id, userId: null, action: `admin.idp.update.${data.type}`, ip: req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || null, userAgent: req.headers.get('user-agent') || null } });
   return NextResponse.json({ ok: true });
 }
 
@@ -179,7 +181,7 @@ export async function PATCH(req: NextRequest) {
   }
 
   await (prisma as any).identityProvider.update({ where: { id: existing.id }, data: { status } });
-  await (prisma as any).audit.create({ data: { tenantId: tenant.id, userId: null, action: `admin.idp.${status}.${type}`, ip: (req.ip as any) || null, userAgent: req.headers.get('user-agent') || null } });
+  await (prisma as any).audit.create({ data: { tenantId: tenant.id, userId: null, action: `admin.idp.${status}.${type}`, ip: req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || null, userAgent: req.headers.get('user-agent') || null } });
   return NextResponse.json({ ok: true });
 }
 
@@ -209,6 +211,6 @@ export async function DELETE(req: NextRequest) {
   }
 
   await (prisma as any).identityProvider.delete({ where: { id: existing.id } });
-  await (prisma as any).audit.create({ data: { tenantId: tenant.id, userId: null, action: `admin.idp.delete.${type}`, ip: (req.ip as any) || null, userAgent: req.headers.get('user-agent') || null } });
+  await (prisma as any).audit.create({ data: { tenantId: tenant.id, userId: null, action: `admin.idp.delete.${type}`, ip: req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || null, userAgent: req.headers.get('user-agent') || null } });
   return NextResponse.json({ ok: true });
 }
