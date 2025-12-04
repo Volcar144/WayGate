@@ -105,8 +105,8 @@ export async function GET() {
   const secretInput = document.getElementById('admin-secret');
   const saveSecretBtn = document.getElementById('save-secret');
 
-  function getSecret() { return localStorage.getItem('admin_secret') || ''; }
-  function setSecret(v) { if (v) localStorage.setItem('admin_secret', v); }
+  function getSecret() { return sessionStorage.getItem('admin_secret') || ''; }
+  function setSecret(v) { if (v) sessionStorage.setItem('admin_secret', v); }
   secretInput.value = getSecret();
   saveSecretBtn.addEventListener('click', () => { setSecret(secretInput.value); load(); });
 
@@ -122,6 +122,8 @@ export async function GET() {
     return { complete, visible };
   }
 
+  function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
   async function load() {
     const secret = getSecret();
     statusBox.textContent = 'Loading…';
@@ -132,10 +134,10 @@ export async function GET() {
       if (!res.ok) throw new Error(data && data.error || 'Failed to load providers');
       const list = data.providers || [];
       const visible = list.filter(p => computeVisibility(p).visible).map(p => titles[p.type]).join(', ');
-      statusBox.innerHTML = visible ? `<div class="ok">Visible on login page: <strong>${visible}</strong></div>` : `<div class="warn">No external providers visible. Enable and configure at least one provider.</div>`;
+      statusBox.innerHTML = visible ? `<div class="ok">Visible on login page: <strong>${esc(visible)}</strong></div>` : `<div class="warn">No external providers visible. Enable and configure at least one provider.</div>`;
       list.forEach(p => providersEl.appendChild(renderProvider(p)));
     } catch (e) {
-      statusBox.innerHTML = `<div class="warn">${e.message || 'Error loading providers'}</div>`;
+      statusBox.innerHTML = `<div class="warn">${esc(e.message || 'Error loading providers')}</div>`;
     }
   }
 

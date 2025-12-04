@@ -4,6 +4,7 @@ import { getTenant } from '@/lib/tenant';
 import { findTenantBySlug } from '@/services/jwks';
 import { prisma } from '@/lib/prisma';
 import { isAdminRequest } from '@/utils/admin';
+import { discoverOidc } from '@/utils/oidc';
 
 export const runtime = 'nodejs';
 
@@ -11,18 +12,6 @@ const bodySchema = z.object({
   type: z.enum(['google', 'microsoft', 'github', 'oidc_generic']),
   issuer: z.string().url().optional(),
 });
-
-async function discover(issuer: string) {
-  try {
-    const wellKnown = issuer.replace(/\/$/, '') + '/.well-known/openid-configuration';
-    const resp = await fetch(wellKnown, { headers: { accept: 'application/json' }, signal: AbortSignal.timeout(10_000) });
-    if (!resp.ok) return { ok: false, error: 'not_found' } as const;
-    const json = await resp.json();
-    return { ok: true as const, discovery: json };
-  } catch (e) {
-    return { ok: false as const, error: 'network_error' };
-  }
-}
 
 export async function POST(req: NextRequest) {
   const tenantSlug = getTenant();
@@ -32,8 +21,12 @@ export async function POST(req: NextRequest) {
   const tenant = await findTenantBySlug(tenantSlug);
   if (!tenant) return NextResponse.json({ error: 'unknown tenant' }, { status: 404 });
 
-  let payload: any = {};
-  try { payload = await req.json(); } catch {}
+  let payload: any;
+  try {
+    payload = await req.json();
+  } catch {
+    return NextResponse.json({ error: 'invalid_json' }, { status: 400 });
+  }
   const parsed = bodySchema.safeParse(payload);
   if (!parsed.success) return NextResponse.json({ error: 'validation_error', details: parsed.error.issues }, { status: 400 });
 
@@ -48,9 +41,8 @@ export async function POST(req: NextRequest) {
 
   const iss = issuer || (existing?.issuer as string | undefined);
   if (!iss) return NextResponse.json({ ok: false, error: 'missing_issuer' }, { status: 400 });
-  const result = await discover(iss);
-  if (!result.ok) return NextResponse.json({ ok: false, error: result.error }, { status: 400 });
-  const d = result.discovery as any;
+  const d = await discoverOidc(iss);
+  if (!d) return NextResponse.json({ ok: false, error: 'discovery_failed' }, { status: 400 });
   if (!d.authorization_endpoint || !d.token_endpoint || !d.jwks_uri) {
     return NextResponse.json({ ok: false, error: 'invalid_discovery' }, { status: 400 });
   }

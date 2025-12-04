@@ -131,7 +131,12 @@ export async function POST(req: NextRequest) {
   }
 
   // Update existing
-  const updateData: any = { clientId: data.clientId, issuer: data.issuer ?? existing.issuer, scopes: scopes.length > 0 ? scopes : existing.scopes };
+  const newIssuer = (data.issuer !== undefined && data.issuer !== '') ? data.issuer : existing.issuer;
+  const needsIssuer = data.type === 'microsoft' || data.type === 'oidc_generic';
+  if (needsIssuer && !newIssuer) {
+    return NextResponse.json({ error: 'validation_error', details: [{ path: ['issuer'], message: 'issuer cannot be removed for microsoft/oidc_generic' }] }, { status: 400 });
+  }
+  const updateData: any = { clientId: data.clientId, issuer: newIssuer, scopes: scopes.length > 0 ? scopes : existing.scopes };
   if (secretEnc) updateData.clientSecretEnc = secretEnc;
   if (data.status) updateData.status = data.status;
 
@@ -193,6 +198,15 @@ export async function DELETE(req: NextRequest) {
   const { type } = parsed.data;
   const existing = await (prisma as any).identityProvider.findFirst({ where: { tenantId: tenant.id, type } });
   if (!existing) return NextResponse.json({ ok: true });
+
+  // Safeguards: do not allow deleting enabled providers or providers with linked identities
+  if (existing.status === 'enabled') {
+    return NextResponse.json({ error: 'forbidden', message: 'Disable the provider before deletion' }, { status: 400 });
+  }
+  const linkCount = await (prisma as any).externalIdentity.count({ where: { providerId: existing.id } });
+  if (linkCount > 0) {
+    return NextResponse.json({ error: 'forbidden', message: `Cannot delete provider with ${linkCount} linked identities` }, { status: 400 });
+  }
 
   await (prisma as any).identityProvider.delete({ where: { id: existing.id } });
   await (prisma as any).audit.create({ data: { tenantId: tenant.id, userId: null, action: `admin.idp.delete.${type}`, ip: (req.ip as any) || null, userAgent: req.headers.get('user-agent') || null } });

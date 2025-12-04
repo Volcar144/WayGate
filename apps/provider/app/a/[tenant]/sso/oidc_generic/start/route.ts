@@ -4,6 +4,7 @@ import { findTenantBySlug } from '@/services/jwks';
 import { getPending } from '@/services/authz';
 import { createUpstreamState, getOidcGenericProvider } from '@/services/idp';
 import { getIssuerURL } from '@/utils/issuer';
+import { discoverOidc } from '@/utils/oidc';
 
 export const runtime = 'nodejs';
 
@@ -12,22 +13,6 @@ function html(body: string, status = 400) {
     status,
     headers: { 'content-type': 'text/html; charset=utf-8' },
   });
-}
-
-async function discover(issuer: string): Promise<{ authorization_endpoint: string } | null> {
-  try {
-    const wellKnown = issuer.replace(/\/$/, '') + '/.well-known/openid-configuration';
-    const res = await fetch(wellKnown, {
-      headers: { accept: 'application/json' },
-      signal: AbortSignal.timeout(10_000),
-    });
-    if (!res.ok) return null;
-    const json = await res.json();
-    if (json && typeof json.authorization_endpoint === 'string') return { authorization_endpoint: String(json.authorization_endpoint) };
-  } catch {
-    // ignore
-  }
-  return null;
 }
 
 export async function GET(req: NextRequest) {
@@ -47,7 +32,7 @@ export async function GET(req: NextRequest) {
   const provider = await getOidcGenericProvider(tenant.id);
   if (!provider) return html('<h1>OIDC sign-in not configured</h1><p>Please contact your administrator.</p>', 400);
 
-  const discovery = await discover(provider.issuer);
+  const discovery = await discoverOidc(provider.issuer);
   if (!discovery || !discovery.authorization_endpoint) {
     return html('<h1>OIDC sign-in failed</h1><p>Could not discover OIDC endpoints for the configured issuer.</p>', 400);
   }

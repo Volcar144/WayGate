@@ -7,6 +7,7 @@ import { prisma } from '@/lib/prisma';
 import { getIssuerURL } from '@/utils/issuer';
 import { importJWK, SignJWT, createRemoteJWKSet, jwtVerify } from 'jose';
 import { randomBytes } from 'node:crypto';
+import { discoverOidc } from '@/utils/oidc';
 
 export const runtime = 'nodejs';
 
@@ -26,25 +27,7 @@ function escapeHtml(s: string) {
     .replace(/'/g, '&#39;');
 }
 
-async function discover(issuer: string): Promise<{
-  issuer?: string;
-  token_endpoint?: string;
-  jwks_uri?: string;
-  userinfo_endpoint?: string;
-} | null> {
-  try {
-    const wellKnown = issuer.replace(/\/$/, '') + '/.well-known/openid-configuration';
-    const res = await fetch(wellKnown, {
-      headers: { accept: 'application/json' },
-      signal: AbortSignal.timeout(10_000),
-    });
-    if (!res.ok) return null;
-    const json = await res.json();
-    return json || null;
-  } catch {
-    return null;
-  }
-}
+
 
 export async function GET(req: NextRequest) {
   const tenantSlug = getTenant();
@@ -73,7 +56,7 @@ export async function GET(req: NextRequest) {
   const provider = await getOidcGenericProvider(tenant.id);
   if (!provider) return html('<h1>OIDC sign-in not configured</h1><p>Please contact your administrator.</p>', 400);
 
-  const discovery = await discover(provider.issuer);
+  const discovery = await discoverOidc(provider.issuer);
   if (!discovery || !discovery.token_endpoint || !discovery.jwks_uri) {
     return html('<h1>OIDC sign-in failed</h1><p>Provider discovery failed.</p>', 400);
   }
@@ -115,8 +98,9 @@ export async function GET(req: NextRequest) {
   let claims: any;
   try {
     const JWKS = createRemoteJWKSet(new URL(discovery.jwks_uri!));
+    const expectedIssuer = typeof discovery.issuer === 'string' ? String(discovery.issuer) : undefined;
     const verified = await jwtVerify(idToken, JWKS, {
-      issuer: discovery.issuer ? [String(discovery.issuer).replace(/\/$/, ''), String(discovery.issuer) + '/'] : undefined,
+      issuer: expectedIssuer,
       audience: provider.clientId,
     });
     claims = verified.payload;
@@ -174,12 +158,12 @@ export async function GET(req: NextRequest) {
       lastLoginAt: now,
     },
   });
-  const linked = !existingLink;
+  const newlyLinked = !existingLink;
 
   // Audit events
   const ip = req.ip || req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || null;
   await (prisma as any).audit.create({ data: { tenantId: tenant.id, userId: user.id, action: 'login.sso.oidc', ip, userAgent: req.headers.get('user-agent') || null } });
-  if (linked) {
+  if (newlyLinked) {
     await (prisma as any).audit.create({ data: { tenantId: tenant.id, userId: user.id, action: 'idp.linked', ip, userAgent: req.headers.get('user-agent') || null } });
   }
 
@@ -233,7 +217,9 @@ async function issueCodeAndBuildRedirect(params: { pending: any; userId: string 
       codeChallengeMethod: pending.codeChallengeMethod,
       authTime: Math.floor(Date.now() / 1000),
     });
-  } catch {}
+  } catch (e) {
+    console.error('Failed to record auth code metadata', e);
+  }
   const qp = serializeParams({ code, state: pending.state });
   const redirect = pending.redirectUri + qp;
   const priv = await getActivePrivateJwk(pending.tenantId);
@@ -249,7 +235,8 @@ async function issueCodeAndBuildRedirect(params: { pending: any; userId: string 
         .setIssuedAt()
         .setExpirationTime('2m')
         .sign(key);
-    } catch {
+    } catch (e) {
+      console.error('Failed to sign handoff JWT');
       handoff = null;
     }
   }
