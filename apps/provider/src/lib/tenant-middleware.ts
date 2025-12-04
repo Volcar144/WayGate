@@ -2,6 +2,49 @@ import { Prisma } from '@prisma/client';
 import { getTenant } from '@/lib/tenant';
 
 /**
+ * Simple in-memory cache for tenant slug -> tenantId mapping
+ */
+class TenantIdCache {
+  private cache = new Map<string, { id: string; expiresAt: number }>();
+  private readonly TTL = 5 * 60 * 1000; // 5 minutes
+  private readonly MAX_SIZE = 1000; // Prevent memory leaks
+
+  get(slug: string): string | null {
+    const entry = this.cache.get(slug);
+    if (!entry) return null;
+    
+    if (Date.now() > entry.expiresAt) {
+      this.cache.delete(slug);
+      return null;
+    }
+    
+    return entry.id;
+  }
+
+  set(slug: string, id: string): void {
+    // Evict oldest entries if cache is full
+    if (this.cache.size >= this.MAX_SIZE) {
+      const oldestKey = this.cache.keys().next().value;
+      if (oldestKey) {
+        this.cache.delete(oldestKey);
+      }
+    }
+    
+    this.cache.set(slug, {
+      id,
+      expiresAt: Date.now() + this.TTL
+    });
+  }
+
+  clear(): void {
+    this.cache.clear();
+  }
+}
+
+// Global cache instance
+const tenantIdCache = new TenantIdCache();
+
+/**
  * Prisma middleware that enforces tenant isolation by automatically adding tenantId filters
  * to all queries and preventing cross-tenant access attempts.
  */
@@ -24,7 +67,7 @@ const TENANT_SCOPED_MODELS = [
 ];
 
 // Operations that should be intercepted for tenant enforcement
-const FILTERED_OPERATIONS = ['findUnique', 'findFirst', 'findMany', 'update', 'updateMany', 'delete', 'deleteMany', 'upsert'];
+const FILTERED_OPERATIONS = ['findUnique', 'findFirst', 'findMany', 'create', 'update', 'updateMany', 'delete', 'deleteMany', 'upsert'];
 
 /**
  * Extract tenant slug from the current request context
@@ -35,6 +78,32 @@ function getCurrentTenantSlug(): string | null {
   } catch {
     return null;
   }
+}
+
+/**
+ * Get tenant ID from slug with caching to avoid repeated database queries
+ */
+async function getTenantId(slug: string): Promise<string> {
+  // Check cache first
+  const cachedId = tenantIdCache.get(slug);
+  if (cachedId) {
+    return cachedId;
+  }
+
+  // Cache miss - fetch from database
+  const { prisma } = await import('@/lib/prisma');
+  const tenant = await prisma.tenant.findUnique({
+    where: { slug },
+    select: { id: true }
+  });
+  
+  if (!tenant) {
+    throw new Error(`Tenant '${slug}' not found`);
+  }
+  
+  // Cache the result
+  tenantIdCache.set(slug, tenant.id);
+  return tenant.id;
 }
 
 /**
@@ -79,9 +148,9 @@ function validateTenantData(args: any, tenantId: string, operation: string): any
       // For operations like upsert, we need to handle nested data structures
       if (operation === 'upsert') {
         ['create', 'update'].forEach(key => {
-          if (newArgs.data[key] && typeof newArgs.data[key] === 'object' && newArgs.data[key].tenantId) {
-            if (newArgs.data[key].tenantId !== tenantId) {
-              throw new Error(`Cross-tenant data modification attempted in ${key}: tenantId ${newArgs.data[key].tenantId} does not match current tenant ${tenantId}`);
+          if (newArgs[key] && typeof newArgs[key] === 'object' && newArgs[key].tenantId) {
+            if (newArgs[key].tenantId !== tenantId) {
+              throw new Error(`Cross-tenant data modification attempted in ${key}: tenantId ${newArgs[key].tenantId} does not match current tenant ${tenantId}`);
             }
           }
         });
@@ -115,7 +184,7 @@ function logCrossTenantAttempt(model: string, operation: string, attemptedTenant
  * Prisma middleware for tenant isolation
  */
 export function tenantIsolationMiddleware() {
-  return async (params: Prisma.MiddlewareParams, next: (params: Prisma.MiddlewareParams) => Promise<any>) => {
+  return async (params: any, next: (params: any) => Promise<any>) => {
     const { model, action, args } = params;
     
     // Skip tenant enforcement for Tenant model itself and non-tenant-scoped models
@@ -141,19 +210,8 @@ export function tenantIsolationMiddleware() {
     }
     
     try {
-      // Get tenant ID from slug - this is a simplified approach
-      // In a real implementation, you'd want to cache this or have it available in context
-      const { prisma } = await import('@/lib/prisma');
-      const tenant = await prisma.tenant.findUnique({
-        where: { slug: currentTenantSlug },
-        select: { id: true }
-      });
-      
-      if (!tenant) {
-        throw new Error(`Tenant '${currentTenantSlug}' not found`);
-      }
-      
-      const tenantId = tenant.id;
+      // Get tenant ID from slug using cache to avoid repeated database queries
+      const tenantId = await getTenantId(currentTenantSlug);
       
       // Add tenant filtering to read operations
       if (['findUnique', 'findFirst', 'findMany'].includes(action as string)) {
@@ -193,4 +251,11 @@ export function tenantIsolationMiddleware() {
 export function applyTenantIsolation(prismaClient: any) {
   prismaClient.$use(tenantIsolationMiddleware());
   return prismaClient;
+}
+
+/**
+ * Clear the tenant ID cache - useful for testing or when tenant data changes
+ */
+export function clearTenantIdCache(): void {
+  tenantIdCache.clear();
 }
