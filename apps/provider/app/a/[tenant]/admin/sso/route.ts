@@ -134,10 +134,10 @@ export async function GET() {
       if (!res.ok) throw new Error(data && data.error || 'Failed to load providers');
       const list = data.providers || [];
       const visible = list.filter(p => computeVisibility(p).visible).map(p => titles[p.type]).join(', ');
-      statusBox.innerHTML = visible ? `<div class="ok">Visible on login page: <strong>${esc(visible)}</strong></div>` : `<div class="warn">No external providers visible. Enable and configure at least one provider.</div>`;
+      statusBox.innerHTML = visible ? '<div class="ok">Visible on login page: <strong>' + esc(visible) + '</strong></div>' : '<div class="warn">No external providers visible. Enable and configure at least one provider.</div>';
       list.forEach(p => providersEl.appendChild(renderProvider(p)));
     } catch (e) {
-      statusBox.innerHTML = `<div class="warn">${esc(e.message || 'Error loading providers')}</div>`;
+      statusBox.innerHTML = '<div class="warn">' + esc(e.message || 'Error loading providers') + '</div>';
     }
   }
 
