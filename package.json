@@ -6,6 +6,7 @@
   "scripts": {
     "build": "turbo build",
     "dev": "turbo dev",
+    "db:migrate": "prisma migrate dev",
     "lint": "turbo lint",
     "format": "prettier --write .",
     "e2e": "playwright test",
