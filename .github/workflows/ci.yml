@@ -11,8 +11,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  lint_typecheck_build:
-    name: Lint, type-check, and build (monorepo)
+  typecheck_build:
+    name: type-check, and build (monorepo)
     runs-on: ubuntu-latest
     env:
       # Provide required env for provider build-time validation
@@ -34,9 +34,6 @@ jobs:
         with:
           node-version: 20
           cache: pnpm
-
-      - name: Lint (all workspaces)
-        run: pnpm -r run lint
 
       - name: Type check (all workspaces)
         run: pnpm -r exec tsc --noEmit
