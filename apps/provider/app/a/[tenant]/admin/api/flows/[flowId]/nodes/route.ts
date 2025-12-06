@@ -11,8 +11,9 @@ const CreateNodeSchema = z.object({
   uiPromptId: z.string().uuid().optional().nullable(),
 });
 
-export async function POST(req: NextRequest, { params }: RouteParams) {
+export async function POST(req: NextRequest, context: { params: Promise<{ flowId: string }> }) {
   try {
+    const params = await context.params;
     const tenant = await requireTenant();
     const body = await req.json();
     const parsed = CreateNodeSchema.parse(body);
