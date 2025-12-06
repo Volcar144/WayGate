@@ -11,8 +11,9 @@ const UpdateNodeSchema = z.object({
   uiPromptId: z.string().uuid().nullable().optional(),
 });
 
-export async function PATCH(req: NextRequest, { params }: RouteParams) {
+export async function PATCH(req: NextRequest, context: { params: Promise<{ flowId: string; nodeId: string }> }) {
   try {
+    const params = await context.params
     const tenant = await requireTenant();
     const body = await req.json();
     const parsed = UpdateNodeSchema.parse(body);
