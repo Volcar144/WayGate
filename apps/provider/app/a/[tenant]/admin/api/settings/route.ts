@@ -31,7 +31,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({
       settings: {
-        ...settings,
+        ...(settings ?? {}),
         status: {
           smtp: smtpStatus ? 'configured' : 'missing',
           redis: redisStatus ? 'connected' : 'disconnected',
@@ -63,7 +63,7 @@ export async function POST(req: NextRequest) {
       },
       ip: req.headers.get('x-forwarded-for') || undefined,
       userAgent: req.headers.get('user-agent') || undefined,
-    });
+    }, tenant.slug);
 
     return NextResponse.json({ settings: updated });
   } catch (error) {

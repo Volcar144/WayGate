@@ -57,7 +57,7 @@ export async function POST(req: NextRequest) {
       details: { clientId: client.clientId, name },
       ip: req.headers.get('x-forwarded-for') || undefined,
       userAgent: req.headers.get('user-agent') || undefined,
-    });
+    }, tenant.slug);
 
     return NextResponse.json({
       client: {

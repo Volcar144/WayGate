@@ -25,7 +25,7 @@ export default function BrandingPage() {
 
   useEffect(() => {
     fetchSettings();
-  }, []);
+  }, [tenant]);
 
   const fetchSettings = async () => {
     try {

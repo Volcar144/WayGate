@@ -29,11 +29,6 @@ export async function POST(req: NextRequest) {
   try {
     const tenant = await requireTenant();
 
-    // Get current active key
-    const activeKey = await prisma.jwkKey.findFirst({
-      where: { tenantId: tenant.id, status: 'active' },
-    });
-
     // Stage a new key
     const { kid, pubJwk, privJwkEncrypted } = generateKeyPair();
 
@@ -48,17 +43,6 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    // If there's an active key, retire it
-    if (activeKey) {
-      await prisma.jwkKey.update({
-        where: { id: activeKey.id },
-        data: {
-          status: 'retired',
-          notAfter: new Date(),
-        },
-      });
-    }
-
     // Create audit event
     await AuditService.create({
       action: 'key.rotated',
@@ -66,11 +50,10 @@ export async function POST(req: NextRequest) {
       resourceId: newKey.id,
       details: {
         newKid: kid,
-        retiredKid: activeKey?.kid,
       },
       ip: req.headers.get('x-forwarded-for') || undefined,
       userAgent: req.headers.get('user-agent') || undefined,
-    });
+    }, tenant.slug);
 
     return NextResponse.json({ key: newKey });
   } catch (error) {

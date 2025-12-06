@@ -33,7 +33,7 @@ export default function AppsPage() {
 
   useEffect(() => {
     fetchClients();
-  }, []);
+  }, [tenant]);
 
   const fetchClients = async () => {
     try {

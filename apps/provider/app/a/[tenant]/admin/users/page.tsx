@@ -29,7 +29,7 @@ export default function UsersPage() {
 
   useEffect(() => {
     fetchUsers();
-  }, []);
+  }, [tenant]);
 
   const fetchUsers = async () => {
     try {

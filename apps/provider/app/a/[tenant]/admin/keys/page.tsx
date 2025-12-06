@@ -23,7 +23,7 @@ export default function KeysPage() {
 
   useEffect(() => {
     fetchKeys();
-  }, []);
+  }, [tenant]);
 
   const fetchKeys = async () => {
     try {

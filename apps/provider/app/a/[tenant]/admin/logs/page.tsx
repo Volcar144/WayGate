@@ -26,7 +26,7 @@ export default function LogsPage() {
 
   useEffect(() => {
     fetchLogs();
-  }, [filterAction]);
+  }, [filterAction, tenant]);
 
   const fetchLogs = async () => {
     try {

@@ -58,7 +58,7 @@ export async function POST(req: NextRequest) {
       details: { email },
       ip: req.headers.get('x-forwarded-for') || undefined,
       userAgent: req.headers.get('user-agent') || undefined,
-    });
+    }, tenant.slug);
 
     return NextResponse.json({ user: { id: user.id, email: user.email } });
   } catch (error) {

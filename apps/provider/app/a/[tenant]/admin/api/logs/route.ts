@@ -9,7 +9,7 @@ export async function GET(req: NextRequest) {
     const tenant = await requireTenant();
     const url = new URL(req.url);
     const action = url.searchParams.get('action');
-    const limit = Math.min(parseInt(url.searchParams.get('limit') || '100'), 1000);
+    const limit = Math.min(parseInt(url.searchParams.get('limit') || '100', 10) || 100, 1000);
 
     const where: any = { tenantId: tenant.id };
     if (action) {

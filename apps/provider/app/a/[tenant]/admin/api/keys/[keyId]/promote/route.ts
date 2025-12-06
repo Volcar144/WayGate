@@ -28,22 +28,26 @@ export async function POST(
       );
     }
 
-    // Retire current active key if it exists
-    const currentActive = await prisma.jwkKey.findFirst({
-      where: { tenantId: tenant.id, status: 'active' },
-    });
-
-    if (currentActive) {
-      await prisma.jwkKey.update({
-        where: { id: currentActive.id },
-        data: { status: 'retired', notAfter: new Date() },
+    // Retire current active key and promote new key in a transaction to ensure atomicity
+    const promoted = await prisma.$transaction(async (tx) => {
+      // Get current active key
+      const currentActive = await tx.jwkKey.findFirst({
+        where: { tenantId: tenant.id, status: 'active' },
       });
-    }
 
-    // Promote new key to active
-    const promoted = await prisma.jwkKey.update({
-      where: { id: keyId },
-      data: { status: 'active' },
+      // Retire current active key if it exists
+      if (currentActive) {
+        await tx.jwkKey.update({
+          where: { id: currentActive.id },
+          data: { status: 'retired', notAfter: new Date() },
+        });
+      }
+
+      // Promote new key to active
+      return tx.jwkKey.update({
+        where: { id: keyId },
+        data: { status: 'active' },
+      });
     });
 
     // Create audit event
@@ -57,7 +61,7 @@ export async function POST(
       },
       ip: req.headers.get('x-forwarded-for') || undefined,
       userAgent: req.headers.get('user-agent') || undefined,
-    });
+    }, tenant.slug);
 
     return NextResponse.json({ key: promoted });
   } catch (error) {

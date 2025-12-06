@@ -11,7 +11,7 @@ export default function AdminLayoutClient({
 }) {
   const params = useParams<{ tenant: string }>();
   const pathname = usePathname();
-  const tenant = params.tenant;
+  const tenant = params.tenant || '';
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
   const navItems = [
@@ -41,7 +41,7 @@ export default function AdminLayoutClient({
         <div className="p-6 border-b border-gray-200">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-lg bg-indigo-600 text-white flex items-center justify-center font-bold">
-              {tenant[0].toUpperCase()}
+              {tenant[0]?.toUpperCase() || '?'}
             </div>
             {sidebarOpen && (
               <div>

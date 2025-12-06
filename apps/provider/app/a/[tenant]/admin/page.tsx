@@ -7,16 +7,18 @@ import { prisma } from '@/lib/prisma';
 import { getIssuerURL } from '@/utils/issuer';
 
 async function getOverviewData(tenantId: string) {
-  const [clientCount, activeUserCount, settings] = await Promise.all([
+  const [clientCount, activeUserCount, settings, fullTenant] = await Promise.all([
     prisma.client.count({ where: { tenantId } }),
     prisma.session.count({ where: { tenantId, expiresAt: { gt: new Date() } } }),
     prisma.tenantSettings.findUnique({ where: { tenantId } }),
+    prisma.tenant.findUnique({ where: { id: tenantId }, select: { createdAt: true } }),
   ]);
 
   return {
     clientCount,
     activeUserCount,
     settings,
+    createdAt: fullTenant?.createdAt,
   };
 }
 
@@ -84,7 +86,7 @@ export default async function AdminOverview() {
           </div>
           <div>
             <div className="text-sm text-gray-600 mb-1">Created</div>
-            <div className="text-gray-900">{new Date(tenant.createdAt).toLocaleDateString()}</div>
+            <div className="text-gray-900">{data.createdAt ? new Date(data.createdAt).toLocaleDateString() : 'N/A'}</div>
           </div>
         </div>
       </div>

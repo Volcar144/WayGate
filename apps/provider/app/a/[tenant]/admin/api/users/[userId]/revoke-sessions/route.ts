@@ -53,7 +53,7 @@ export async function POST(
       details: { revokedSessions: sessions.length },
       ip: req.headers.get('x-forwarded-for') || undefined,
       userAgent: req.headers.get('user-agent') || undefined,
-    });
+    }, tenant.slug);
 
     return NextResponse.json({ ok: true });
   } catch (error) {

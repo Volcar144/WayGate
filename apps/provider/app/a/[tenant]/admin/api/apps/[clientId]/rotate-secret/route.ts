@@ -37,7 +37,7 @@ export async function POST(
       details: { clientId: client.clientId, name: client.name },
       ip: req.headers.get('x-forwarded-for') || undefined,
       userAgent: req.headers.get('user-agent') || undefined,
-    });
+    }, tenant.slug);
 
     return NextResponse.json({ clientSecret: newSecret });
   } catch (error) {
