@@ -60,6 +60,23 @@ Prerequisites
 - From the protected page (or home when authenticated) click "Sign out"
 - The RP calls the provider logout endpoint (/a/{tenant}/logout) with the refresh token and clears the local session
 
+Configurable auth flows
+
+Tenant admins can compose authentication flows under **/a/{tenant}/admin/flows**. Each flow is scoped to a trigger (sign-in, sign-up, consent, etc.) and is built from ordered nodes. The first enabled flow matching the trigger runs automatically during the OAuth authorize pipeline.
+
+Built-in nodes:
+- **ReadSignals** – captures request IP, geo hints and basic device fingerprinting
+- **CheckCaptcha** – verifies Cloudflare Turnstile or hCaptcha tokens and prevents replay via Redis
+- **PromptUI** – renders a server-driven prompt (built with the Prompt Library) and resumes the flow when the user submits inputs
+- **MetadataWrite** – writes JSON blobs to the per-user metadata namespace
+- **RequireReauth, Branch, Webhook, API Request, Finish** – scaffolding for step-up auth, routing and external callbacks
+
+To build the acceptance flow described in the ticket:
+1. Create a sign-in flow and enable it.
+2. Add nodes in this order: `ReadSignals` → `CheckCaptcha` (set provider to Turnstile and use test site/secret keys if needed) → `PromptUI` (pick a prompt from the library, e.g., “extra email confirmation”) → `MetadataWrite` (namespace `signin`, values `{ "confirmed": true }`) → `Finish`.
+3. Create prompts under the Prompt Library using JSON schemas. Each schema defines fields, helper text, and optional button actions.
+4. Runs are streamed to `/a/{tenant}/admin/flows` so you can inspect node events, errors, and context.
+
 Local E2E test harness
 
 You can run a full end‑to‑end test suite locally without any external services.
