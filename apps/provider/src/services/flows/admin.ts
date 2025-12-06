@@ -195,7 +195,7 @@ export async function updateFlowNode(
 ): Promise<FlowDto> {
   await ensureFlowOwnership(tenantId, flowId);
   await prisma.flowNode.update({
-    where: { id: nodeId, tenantId },
+    where: { id: nodeId, tenantId, flowId },
     data: {
       ...(typeof updates.order === 'number' ? { order: updates.order } : {}),
       ...(updates.config ? { config: updates.config } : {}),
