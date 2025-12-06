@@ -27,8 +27,9 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
   }
 }
 
-export async function DELETE(_req: NextRequest, { params }: RouteParams) {
+export async function DELETE(_req: NextRequest, context: { params: Promise<{ flowId: string; nodeId: string }> }) {
   try {
+    const params = await context.params;
     const tenant = await requireTenant();
     const flow = await deleteFlowNode(tenant.id, params.flowId, params.nodeId);
     return NextResponse.json({ flow });
