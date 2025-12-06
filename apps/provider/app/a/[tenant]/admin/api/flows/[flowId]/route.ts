@@ -11,8 +11,9 @@ const UpdateFlowSchema = z.object({
 
 type RouteParams = { params: { flowId: string } };
 
-export async function PATCH(req: NextRequest, { params }: RouteParams) {
+export async function PATCH(req: NextRequest, context: { params: Promise<{ flowId: string }> }) {
   try {
+    const params = await context.params;
     const tenant = await requireTenant();
     const body = await req.json();
     const parsed = UpdateFlowSchema.parse(body);
@@ -27,8 +28,9 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
   }
 }
 
-export async function DELETE(_req: NextRequest, { params }: RouteParams) {
+export async function DELETE(_req: NextRequest, context: { params: Promise<{ flowId: string }> }) {
   try {
+    const params = await context.params;
     const tenant = await requireTenant();
     await deleteFlow(tenant.id, params.flowId);
     return NextResponse.json({ ok: true });
