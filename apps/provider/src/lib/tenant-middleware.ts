@@ -63,7 +63,13 @@ const TENANT_SCOPED_MODELS = [
   'Audit',
   'TenantRole',
   'UserRole',
-  'TenantSettings'
+  'TenantSettings',
+  'Flow',
+  'FlowNode',
+  'FlowRun',
+  'FlowEvent',
+  'UiPrompt',
+  'UserMetadata'
 ];
 
 // Operations that should be intercepted for tenant enforcement

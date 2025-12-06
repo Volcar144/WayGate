@@ -23,7 +23,7 @@ export default function AdminLayoutClient({
     { label: 'SSO', href: `/a/${tenant}/admin/sso-config`, icon: '🔐' },
     { label: 'Logs', href: `/a/${tenant}/admin/logs`, icon: '📝' },
     { label: 'Settings', href: `/a/${tenant}/admin/settings`, icon: '⚙️' },
-    { label: 'Flows', href: `/a/${tenant}/admin/flows`, icon: '🔄', disabled: true },
+    { label: 'Flows', href: `/a/${tenant}/admin/flows`, icon: '🔄' },
     { label: 'SCIM', href: `/a/${tenant}/admin/scim`, icon: '🔗', disabled: true },
   ];
 

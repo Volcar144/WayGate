@@ -40,3 +40,4 @@ Notes
 - Logs: Server logs are structured JSON with basic redaction of emails and secrets.
 - Health: /healthz (liveness) and /readyz (DB + Redis readiness) endpoints are available on the provider.
 - Security headers: Middleware sets CSP and other headers. The authorize page uses a nonce‑based inline script to satisfy CSP.
+- Auth flows: Tenant admins can design and enable flows under /a/{tenant}/admin/flows. Each flow run is persisted (flow_runs + flow_events tables) so you can audit prompts, captcha checks, and branching decisions.
