@@ -94,9 +94,22 @@ function renderFlowPromptPage(props: PromptPageProps) {
   return html(body, 200, headExtras);
 }
 
+function escapeHtml(str: string | undefined | null): string {
+  if (!str) return '';
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 function renderField(field: PromptSchemaField) {
-  const base = `<div class="field"><label for="${field.id}">${field.label}${field.required ? ' *' : ''}</label>`;
-  const helper = field.helperText ? `<p style="font-size:13px;color:#64748b;margin:4px 0 0">${field.helperText}</p>` : '';
+  const id = escapeHtml(field.id);
+  const label = escapeHtml(field.label);
+  const placeholder = escapeHtml(field.placeholder);
+  const helper = field.helperText ? `<p style="font-size:13px;color:#64748b;margin:4px 0 0">${escapeHtml(field.helperText)}</p>` : '';
+  const base = `<div class="field"><label for="${id}">${label}${field.required ? ' *' : ''}</label>`;
   if (field.type === 'textarea') {
     return `${base}<textarea id="${field.id}" name="${field.id}" ${field.required ? 'required' : ''} placeholder="${field.placeholder ?? ''}"></textarea>${helper}</div>`;
   }
