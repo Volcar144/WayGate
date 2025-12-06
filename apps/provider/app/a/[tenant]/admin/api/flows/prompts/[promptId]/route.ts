@@ -12,8 +12,9 @@ const UpdatePromptSchema = z.object({
   timeoutSec: z.number().int().min(15).max(900).nullable().optional(),
 });
 
-export async function PATCH(req: NextRequest, { params }: RouteParams) {
+export async function PATCH(req: NextRequest, context: { params: Promise<{ promptId: string }> }) {
   try {
+    const params = await context.params;
     const tenant = await requireTenant();
     const body = await req.json();
     const parsed = UpdatePromptSchema.parse(body);
@@ -28,8 +29,9 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
   }
 }
 
-export async function DELETE(_req: NextRequest, { params }: RouteParams) {
+export async function DELETE(_req: NextRequest, context: { params: Promise<{ promptId: string }> }) {
   try {
+    const params = await context.params;
     const tenant = await requireTenant();
     await deletePrompt(tenant.id, params.promptId);
     return NextResponse.json({ ok: true });

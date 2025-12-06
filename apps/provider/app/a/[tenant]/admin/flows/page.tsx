@@ -542,6 +542,12 @@ function NodeCard({
   const [uiPromptId, setUiPromptId] = useState(node.uiPromptId || '');
   const [expanded, setExpanded] = useState(false);
 
+  useEffect(() => {
+    setOrder(node.order);
+    setConfigText(JSON.stringify(node.config ?? {}, null, 2));
+    setUiPromptId(node.uiPromptId || '');
+  }, [node.order, node.config, node.uiPromptId]);
+
   return (
     <div className="border border-gray-200 rounded-lg p-3">
       <div className="flex items-center justify-between">

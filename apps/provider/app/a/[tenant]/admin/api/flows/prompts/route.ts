@@ -6,7 +6,30 @@ import { z } from 'zod';
 const PromptSchema = z.object({
   title: z.string().min(3),
   description: z.string().optional().nullable(),
-  schema: z.record(z.any()),
+const PromptSchema = z.object({
+  title: z.string().min(3),
+  description: z.string().optional().nullable(),
+  schema: z.object({
+    fields: z.array(z.object({
+      id: z.string(),
+      label: z.string(),
+      type: z.enum(['text', 'email', 'textarea', 'select', 'number', 'password', 'checkbox']),
+      required: z.boolean().optional(),
+      placeholder: z.string().optional(),
+      helperText: z.string().optional(),
+      options: z.array(z.object({ label: z.string(), value: z.string() })).optional(),
+    })),
+    actions: z.array(z.object({
+      id: z.string(),
+      label: z.string(),
+      variant: z.enum(['primary', 'secondary', 'danger']).optional(),
+      description: z.string().optional(),
+    })).optional(),
+    submitLabel: z.string().optional(),
+    cancelLabel: z.string().optional(),
+  }),
+  timeoutSec: z.number().int().min(15).max(900).optional().nullable(),
+});
   timeoutSec: z.number().int().min(15).max(900).optional().nullable(),
 });
 

@@ -39,8 +39,11 @@ function html(body: string, status = 200, headExtras = '') {
 
 function buildRequestContext(req: NextRequest): FlowRequestContext {
   const headers: Record<string, string> = {};
+  const ALLOWED_HEADERS = ['user-agent', 'accept-language', 'referer', 'origin'];
   req.headers.forEach((value, key) => {
-    headers[key] = value;
+    if (ALLOWED_HEADERS.includes(key.toLowerCase())) {
+      headers[key] = value;
+    }
   });
   return {
     ip: (req.ip as string | null) || req.headers.get('x-forwarded-for') || null,
