@@ -6,7 +6,14 @@ import { z } from 'zod';
 type RouteParams = { params: { flowId: string } };
 
 const CreateNodeSchema = z.object({
-  type: z.enum(['begin','read_signals','check_captcha','prompt_ui','metadata_write','require_reauth','branch','webhook','api_request','finish']),
+  type: z.enum([
+    'begin','read_signals','check_captcha','prompt_ui','metadata_write','require_reauth',
+    'branch','webhook','api_request','email_verification','sms_verification','phone_verification',
+    'document_upload','biometric_check','device_fingerprint','geolocation_check','threat_detection',
+    'conditional_logic','data_enrichment','rate_limit_check','session_binding','notification',
+    'mfa_challenge','mfa_totp_verify','mfa_sms_verify','mfa_email_verify','mfa_webauthn_verify',
+    'delay','loop','parallel_process','finish'
+  ]),
   config: z.record(z.any()).optional(),
   uiPromptId: z.string().uuid().optional().nullable(),
 });

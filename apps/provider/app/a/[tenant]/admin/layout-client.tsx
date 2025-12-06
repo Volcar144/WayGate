@@ -58,7 +58,7 @@ export default function AdminLayoutClient({
             return (
               <Link
                 key={item.href}
-                href={item.disabled ? '#' : item.href}
+                href={(item.disabled ? '#' : item.href) as any}
                 onClick={(e) => item.disabled && e.preventDefault()}
                 className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
                   item.disabled

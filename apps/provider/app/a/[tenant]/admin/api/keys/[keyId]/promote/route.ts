@@ -28,13 +28,13 @@ export async function POST(
       );
     }
 
+    // Get current active key first
+    const currentActive = await prisma.jwkKey.findFirst({
+      where: { tenantId: tenant.id, status: 'active' },
+    });
+
     // Retire current active key and promote new key in a transaction to ensure atomicity
     const promoted = await prisma.$transaction(async (tx) => {
-      // Get current active key
-      const currentActive = await tx.jwkKey.findFirst({
-        where: { tenantId: tenant.id, status: 'active' },
-      });
-
       // Retire current active key if it exists
       if (currentActive) {
         await tx.jwkKey.update({

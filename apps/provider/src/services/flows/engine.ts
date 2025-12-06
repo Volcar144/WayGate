@@ -99,7 +99,7 @@ const PromptSchemaValidator = z.object({
       z.object({
         id: z.string().min(1),
         label: z.string().min(1),
-        type: z.enum(['text', 'email', 'textarea', 'select', 'number', 'password', 'checkbox']),
+        type: z.enum(['text', 'email', 'textarea', 'select', 'number', 'password', 'checkbox', 'radio', 'date', 'tel', 'url', 'file', 'color', 'range', 'time', 'otp', 'multiselect', 'address', 'signature']),
         required: z.boolean().optional(),
         placeholder: z.string().optional(),
         helperText: z.string().optional(),
@@ -449,6 +449,13 @@ interface MetadataWriteConfig {
   values: Record<string, unknown>;
 }
 
+interface GeolocationCheckConfig {
+  namespace?: string;
+  key?: string;
+  requireSame?: boolean;
+  treatMissingAsMismatch?: boolean;
+}
+
 function ensurePromptDescriptor(
   flow: FlowWithNodes,
   node: FlowNodeWithPrompt,
@@ -499,6 +506,21 @@ export async function startFlowRun(options: FlowStartOptions): Promise<FlowEngin
     return { type: 'skipped' };
   }
   const context = buildInitialContext(options);
+  // load user's metadata into context so nodes can read previous values
+  try {
+    const metas = await prisma.userMetadata.findMany({ where: { tenantId: options.tenantId, userId: options.user.id } });
+    if (!context.metadata) context.metadata = {};
+    for (const m of metas) {
+      try {
+        context.metadata[m.namespace] = m.data as Record<string, any>;
+      } catch {
+        context.metadata[m.namespace] = m.data as any;
+      }
+    }
+  } catch (e) {
+    // ignore metadata load failures - engine can continue
+    logger.warn('Failed to load user metadata for flow start', { error: e instanceof Error ? e.message : e });
+  }
   const include = {
     flow: {
       include: {
@@ -619,6 +641,46 @@ async function runLoop(args: RunLoopArgs): Promise<FlowEngineResult> {
         enhanceSignals(args.context, args.request);
         await updateRunContext(args.run.id, args.context, current.id);
         await recordEvent(args.run.tenantId, args.run.id, current.id, 'exit');
+        current = nextNodeResolver(current, flow);
+        continue;
+      }
+
+      if (current.type === 'geolocation_check') {
+        // ensure signals populated
+        enhanceSignals(args.context, args.request);
+        const cfg = sanitizeConfig<GeolocationCheckConfig>(current.config, { namespace: 'default', key: 'last_login_country', requireSame: true, treatMissingAsMismatch: false });
+        const currentCountry = args.context.signals?.geo?.country || null;
+        const last = args.context.metadata?.[cfg.namespace]?.[cfg.key] ?? null;
+        if (!currentCountry) {
+          // cannot determine geo -> continue
+          await updateRunContext(args.run.id, args.context, current.id);
+          await recordEvent(args.run.tenantId, args.run.id, current.id, 'exit', { reason: 'no_geo' });
+          current = nextNodeResolver(current, flow);
+          continue;
+        }
+
+        // mismatch handling
+        const mismatch = last && currentCountry !== last;
+        if (mismatch) {
+          await recordEvent(args.run.tenantId, args.run.id, current.id, 'exit', { mismatch: true, last, currentCountry });
+          // route to failureNodeId if configured, otherwise continue to next
+          if (current.failureNodeId) {
+            current = nodesMap(flow).get(current.failureNodeId) || null;
+          } else {
+            current = nextNodeResolver(current, flow);
+          }
+          // do not overwrite stored metadata here; let metadata_write node persist new value
+          continue;
+        }
+
+        // no mismatch - update in-memory context so later metadata_write can merge/persist if desired
+        if (!args.context.metadata) args.context.metadata = {};
+        if (!args.context.metadata[cfg.namespace]) args.context.metadata[cfg.namespace] = {};
+        try {
+          (args.context.metadata[cfg.namespace] as any)[cfg.key as string] = currentCountry;
+        } catch {}
+        await updateRunContext(args.run.id, args.context, current.id);
+        await recordEvent(args.run.tenantId, args.run.id, current.id, 'exit', { mismatch: false, currentCountry });
         current = nextNodeResolver(current, flow);
         continue;
       }

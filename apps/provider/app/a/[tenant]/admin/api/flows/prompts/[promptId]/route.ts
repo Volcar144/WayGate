@@ -5,10 +5,45 @@ import { z } from 'zod';
 
 type RouteParams = { params: { promptId: string } };
 
+const PromptSchemaValidator = z.object({
+  fields: z
+    .array(
+      z.object({
+        id: z.string().min(1),
+        label: z.string().min(1),
+        type: z.enum(['text', 'email', 'textarea', 'select', 'number', 'password', 'checkbox', 'radio', 'date', 'tel', 'url', 'file', 'color', 'range', 'time', 'otp', 'multiselect', 'address', 'signature']),
+        required: z.boolean().optional(),
+        placeholder: z.string().optional(),
+        helperText: z.string().optional(),
+        options: z
+          .array(
+            z.object({
+              label: z.string(),
+              value: z.string(),
+            }),
+          )
+          .optional(),
+      }),
+    )
+    .default([]),
+  actions: z
+    .array(
+      z.object({
+        id: z.string().min(1),
+        label: z.string().min(1),
+        variant: z.enum(['primary', 'secondary', 'danger']).optional(),
+        description: z.string().optional(),
+      }),
+    )
+    .optional(),
+  submitLabel: z.string().optional(),
+  cancelLabel: z.string().optional(),
+});
+
 const UpdatePromptSchema = z.object({
   title: z.string().min(3).optional(),
   description: z.string().nullable().optional(),
-  schema: z.record(z.any()).optional(),
+  schema: PromptSchemaValidator.optional(),
   timeoutSec: z.number().int().min(15).max(900).nullable().optional(),
 });
 

@@ -22,6 +22,27 @@ const defaultPromptSchema = JSON.stringify(
         required: true,
         placeholder: 'YES',
       },
+      {
+        id: 'email_field',
+        label: 'Email Address',
+        type: 'email',
+        placeholder: 'user@example.com',
+      },
+      {
+        id: 'phone_field',
+        label: 'Phone Number',
+        type: 'tel',
+        placeholder: '+1 (555) 000-0000',
+      },
+      {
+        id: 'preference',
+        label: 'Preference',
+        type: 'select',
+        options: [
+          { label: 'Option 1', value: 'opt1' },
+          { label: 'Option 2', value: 'opt2' },
+        ],
+      },
     ],
     submitLabel: 'Confirm',
     cancelLabel: 'Cancel',
@@ -30,9 +51,37 @@ const defaultPromptSchema = JSON.stringify(
   2,
 );
 
-const defaultNodeConfig = JSON.stringify({
-  notes: 'Add configuration here',
-});
+// Node config templates for different node types
+const nodeConfigTemplates: Record<string, Record<string, any>> = {
+  begin: { description: 'Flow entry point', trackEntry: true },
+  finish: { successMessage: 'Flow completed successfully', trackExit: true, returnToClient: true },
+  read_signals: { collectIP: true, collectUserAgent: true, collectGeo: true, collectDevice: true },
+  check_captcha: { provider: 'turnstile', siteKey: '', secretKey: '', minScore: 0.5, timeoutSec: 120 },
+  prompt_ui: { allowSkip: false, trackSubmission: true, timeout: 120 },
+  require_reauth: { sessionCheckOnly: false, timeout: 180 },
+  metadata_write: { namespace: 'custom', values: {} },
+  notification: { notificationType: 'email', template: 'verification_code', deliveryTimeout: 60, retryAttempts: 3 },
+  email_verification: { verificationCodeLength: 6, codeExpiryMinutes: 15, maxAttempts: 5 },
+  sms_verification: { verificationCodeLength: 6, codeExpiryMinutes: 15, maxAttempts: 5, provider: 'twilio' },
+  phone_verification: { verificationCodeLength: 6, codeExpiryMinutes: 15, maxAttempts: 5 },
+  device_fingerprint: { hashAlgorithm: 'sha256', storeFingerprint: true, verifyAgainstHistory: true },
+  geolocation_check: { allowedCountries: [], blockedCountries: [], riskThreshold: 0.6 },
+  threat_detection: { enableAnomalyDetection: true, enableBotDetection: true, riskThreshold: 0.7 },
+  rate_limit_check: { maxAttempts: 10, timeWindowSeconds: 3600, blockDurationSeconds: 300 },
+  session_binding: { verifyUserAgent: true, verifyIP: false, strictMode: false },
+  biometric_check: { biometricType: 'fingerprint', retryAttempts: 3, timeoutSeconds: 30 },
+  document_upload: { documentType: 'national_id', allowedFormats: ['pdf', 'jpg', 'png'], maxFileSize: 5242880, requireOCR: false },
+  data_enrichment: { enrichmentServices: [], timeout: 10000, storeResults: true },
+  conditional_logic: { condition: 'if', field: '', operator: 'equals', value: '', trueNodeId: '', falseNodeId: '' },
+  branch: { successNodeId: '', failureNodeId: '' },
+  delay: { delaySeconds: 5 },
+  loop: { iterations: 3, itemField: '', counterField: '' },
+  parallel_process: { processIds: [], timeout: 30000, continueOnFailure: false },
+  webhook: { url: '', method: 'POST', timeout: 10000, retryAttempts: 3, retryBackoffMultiplier: 2 },
+  api_request: { endpoint: '', method: 'GET', timeout: 10000, headers: {}, bodyTemplate: {} },
+};
+
+const defaultNodeConfig = JSON.stringify(nodeConfigTemplates.begin);
 
 export default function FlowsPage() {
   const params = useParams<{ tenant: string }>();
@@ -43,7 +92,7 @@ export default function FlowsPage() {
   const [selectedFlowId, setSelectedFlowId] = useState<string | null>(null);
   const [newFlow, setNewFlow] = useState({ name: '', trigger: 'signin' as FlowTrigger });
   const [creatingFlow, setCreatingFlow] = useState(false);
-  const [nodeForm, setNodeForm] = useState({ type: 'read_signals' as FlowNodeType, config: defaultNodeConfig, uiPromptId: '' });
+  const [nodeForm, setNodeForm] = useState({ type: 'begin' as FlowNodeType, config: '', uiPromptId: '' });
   const [promptForm, setPromptForm] = useState({ title: '', description: '', schema: defaultPromptSchema, timeoutSec: 120 });
   const [savingMessage, setSavingMessage] = useState<string | null>(null);
 
@@ -129,7 +178,13 @@ export default function FlowsPage() {
     e.preventDefault();
     if (!tenant || !selectedFlow) return;
     try {
-      const config = nodeForm.config ? JSON.parse(nodeForm.config) : {};
+      let config = {};
+      if (nodeForm.config.trim()) {
+        config = JSON.parse(nodeForm.config);
+      } else {
+        // Use template for this node type
+        config = nodeConfigTemplates[nodeForm.type] || {};
+      }
       const res = await fetch(`/a/${tenant}/admin/api/flows/${selectedFlow.id}/nodes`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -140,7 +195,7 @@ export default function FlowsPage() {
         }),
       });
       if (!res.ok) throw new Error('Failed to add node');
-      setNodeForm({ type: 'read_signals', config: defaultNodeConfig, uiPromptId: '' });
+      setNodeForm({ type: 'begin', config: '', uiPromptId: '' });
       await fetchDashboard();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to add node (ensure config is valid JSON)');
@@ -372,15 +427,51 @@ export default function FlowsPage() {
                       onChange={(e) => setNodeForm((prev) => ({ ...prev, type: e.target.value as FlowNodeType }))}
                       className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm"
                     >
-                      <option value="read_signals">ReadSignals</option>
-                      <option value="check_captcha">CheckCaptcha</option>
-                      <option value="prompt_ui">PromptUI</option>
-                      <option value="metadata_write">MetadataWrite</option>
-                      <option value="require_reauth">RequireReauth</option>
-                      <option value="branch">Branch</option>
-                      <option value="webhook">Webhook</option>
-                      <option value="api_request">API Request</option>
-                      <option value="finish">Finish</option>
+                      <optgroup label="Flow Control">
+                        <option value="begin">Begin</option>
+                        <option value="finish">Finish</option>
+                        <option value="branch">Branch</option>
+                        <option value="conditional_logic">Conditional Logic</option>
+                        <option value="delay">Delay</option>
+                        <option value="loop">Loop</option>
+                        <option value="parallel_process">Parallel Process</option>
+                      </optgroup>
+                      <optgroup label="User Interaction">
+                        <option value="prompt_ui">Prompt UI</option>
+                        <option value="notification">Notification</option>
+                      </optgroup>
+                      <optgroup label="Verification">
+                        <option value="email_verification">Email Verification</option>
+                        <option value="sms_verification">SMS Verification</option>
+                        <option value="phone_verification">Phone Verification</option>
+                        <option value="require_reauth">Require Reauth</option>
+                        <option value="check_captcha">CAPTCHA Check</option>
+                      </optgroup>
+                      <optgroup label="Multi-Factor Auth">
+                        <option value="mfa_challenge">MFA Challenge</option>
+                        <option value="mfa_totp_verify">MFA: TOTP (Authenticator App)</option>
+                        <option value="mfa_sms_verify">MFA: SMS Code</option>
+                        <option value="mfa_email_verify">MFA: Email Code</option>
+                        <option value="mfa_webauthn_verify">MFA: WebAuthn (Passkey)</option>
+                      </optgroup>
+                      <optgroup label="Data Collection">
+                        <option value="document_upload">Document Upload</option>
+                        <option value="metadata_write">Metadata Write</option>
+                        <option value="data_enrichment">Data Enrichment</option>
+                      </optgroup>
+                      <optgroup label="Security & Risk">
+                        <option value="read_signals">Read Signals</option>
+                        <option value="device_fingerprint">Device Fingerprint</option>
+                        <option value="geolocation_check">Geolocation Check</option>
+                        <option value="threat_detection">Threat Detection</option>
+                        <option value="rate_limit_check">Rate Limit Check</option>
+                        <option value="session_binding">Session Binding</option>
+                        <option value="biometric_check">Biometric Check</option>
+                      </optgroup>
+                      <optgroup label="Integration">
+                        <option value="webhook">Webhook</option>
+                        <option value="api_request">API Request</option>
+                      </optgroup>
                     </select>
                     <select
                       value={nodeForm.uiPromptId}

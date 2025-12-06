@@ -21,7 +21,7 @@ const PromptSchemaValidator = z.object({
       z.object({
         id: z.string().min(1),
         label: z.string().min(1),
-        type: z.enum(['text', 'email', 'textarea', 'select', 'number', 'password', 'checkbox']),
+        type: z.enum(['text', 'email', 'textarea', 'select', 'number', 'password', 'checkbox', 'radio', 'date', 'tel', 'url', 'file', 'color', 'range', 'time', 'otp', 'multiselect', 'address', 'signature']),
         required: z.boolean().optional(),
         placeholder: z.string().optional(),
         helperText: z.string().optional(),

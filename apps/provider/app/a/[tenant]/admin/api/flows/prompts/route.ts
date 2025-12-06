@@ -10,7 +10,7 @@ const PromptSchema = z.object({
     fields: z.array(z.object({
       id: z.string(),
       label: z.string(),
-      type: z.enum(['text', 'email', 'textarea', 'select', 'number', 'password', 'checkbox']),
+      type: z.enum(['text', 'email', 'textarea', 'select', 'number', 'password', 'checkbox', 'radio', 'date', 'tel', 'url', 'file', 'color', 'range', 'time', 'otp', 'multiselect', 'address', 'signature']),
       required: z.boolean().optional(),
       placeholder: z.string().optional(),
       helperText: z.string().optional(),
