@@ -27,17 +27,12 @@ export async function POST(req: NextRequest) {
   } catch (e) {
     Sentry?.captureException?.(e);
     console.error('Failed to parse JSON payload for logout', e);
-    payload = null;
-  }
-  if (!payload) {
     try {
-      payload = await req.json();
-    } catch (e) {
-      Sentry?.captureException?.(e);
-      console.error('Failed to parse JSON payload for logout', e);
-      payload = null;
+      payload = await req.formData();
+    } catch (e2) {
+      Sentry?.captureException?.(e2);
+      console.error('Failed to parse form data payload for logout', e2);
     }
-    } catch (e) { Sentry?.captureException?.(e); console.error('Failed to parse form data payload for logout', e); }
   }
 
   const refreshToken = payload?.refresh_token as string | undefined;

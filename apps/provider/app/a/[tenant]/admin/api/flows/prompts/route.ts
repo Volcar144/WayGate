@@ -6,9 +6,6 @@ import { z } from 'zod';
 const PromptSchema = z.object({
   title: z.string().min(3),
   description: z.string().optional().nullable(),
-const PromptSchema = z.object({
-  title: z.string().min(3),
-  description: z.string().optional().nullable(),
   schema: z.object({
     fields: z.array(z.object({
       id: z.string(),
@@ -28,8 +25,6 @@ const PromptSchema = z.object({
     submitLabel: z.string().optional(),
     cancelLabel: z.string().optional(),
   }),
-  timeoutSec: z.number().int().min(15).max(900).optional().nullable(),
-});
   timeoutSec: z.number().int().min(15).max(900).optional().nullable(),
 });
 
