@@ -8,6 +8,14 @@ import { getIssuerURL } from '@/utils/issuer';
 export async function POST(req: NextRequest) {
   const tenantSlug = getTenant();
   if (!tenantSlug) {
+    // In production, provide a friendly error with CTA
+    if (process.env.NODE_ENV === 'production') {
+      return NextResponse.json({
+        error: 'Invalid request',
+        message: 'Tenant context is required to access this endpoint',
+        action: 'Please access this endpoint through the proper tenant URL (/a/{tenant}/admin-login/api/magic)',
+      }, { status: 400 });
+    }
     return NextResponse.json({ error: 'Missing tenant' }, { status: 400 });
   }
 

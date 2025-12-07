@@ -10,6 +10,17 @@ import type { Prisma } from '@prisma/client';
 export async function GET(req: NextRequest) {
   const tenantSlug = getTenant();
   if (!tenantSlug) {
+    // In production, provide a friendly error with CTA
+    if (process.env.NODE_ENV === 'production') {
+      return new NextResponse(
+        JSON.stringify({
+          error: 'Invalid request',
+          message: 'Tenant context is required to access this endpoint',
+          action: 'Please access this page through the proper tenant URL (/a/{tenant}/admin-login/callback)',
+        }),
+        { status: 400, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
     return new NextResponse('Missing tenant', { status: 400 });
   }
 
