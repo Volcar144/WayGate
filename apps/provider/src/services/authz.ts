@@ -119,14 +119,23 @@ export async function createPendingAuthRequest(
     completed: false,
   };
 
-  const redis = getTenantRedisInstance();
-  if (redis) {
-    const ttlSec = Math.max(1, Math.ceil(ttl / 1000));
-    await redis.set(keyPending(rid), JSON.stringify(req), 'EX', ttlSec);
-  } else {
-    const store = ensureStore();
-    store.pending.set(rid, req);
+  try {
+    const redis = getTenantRedisInstance();
+    if (redis) {
+      const ttlSec = Math.max(1, Math.ceil(ttl / 1000));
+      const result = await redis.set(keyPending(rid), JSON.stringify(req), 'EX', ttlSec);
+      if (result !== null) {
+        // Successfully stored in Redis
+        return req;
+      }
+    }
+  } catch (e) {
+    console.error('Failed to store pending auth request in Redis:', e);
   }
+  
+  // Fallback to in-memory storage if Redis is not available
+  const store = ensureStore();
+  store.pending.set(rid, req);
   return req;
 }
 
@@ -287,13 +296,21 @@ export async function issueMagicToken(params: { tenantId: string; tenantSlug: st
   };
 
   const redis = getTenantRedis(params.tenantSlug);
-  if (redis) {
+  try {
     const key = keyMagic(token);
-    await redis.set(key, JSON.stringify(mt), 'EX', Math.max(1, Math.ceil(ttl / 1000)));
-  } else {
-    const store = ensureStore();
-    store.magic.set(token, mt);
+    // This will return null if Redis is not available, so we check if the operation succeeded
+    const result = await redis.set(key, JSON.stringify(mt), 'EX', Math.max(1, Math.ceil(ttl / 1000)));
+    if (result !== null) {
+      // Successfully stored in Redis
+      return mt;
+    }
+  } catch (e) {
+    console.error('Failed to store magic token in Redis:', e);
   }
+  
+  // Fallback to in-memory storage if Redis is not available
+  const store = ensureStore();
+  store.magic.set(token, mt);
   return mt;
 }
 
