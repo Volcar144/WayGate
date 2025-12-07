@@ -44,7 +44,11 @@ export async function POST(req: NextRequest) {
     });
 
     // Create admin user (tenant-scoped)
-    const user = await prisma.user.create({
+    // Cast `data` as any here to avoid type mismatches if Prisma client
+    // hasn't been regenerated yet to include the new `passwordHash` field.
+    // Use unchecked create via `any` cast on prisma to avoid type mismatch
+    // issues if the TypeScript server has stale Prisma types.
+    const user = await (prisma as any).user.create({
       data: {
         tenantId: tenant.id,
         email: adminEmail,
