@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireTenantAdmin } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { AuditService } from '@/services/audit';
+import { RbacService } from '@/lib/rbac';
+import type { Prisma } from '@prisma/client';
 
 export const runtime = 'nodejs';
 
@@ -24,29 +26,21 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'User already exists' }, { status: 409 });
     }
 
-    // Create user
-    const user = await prisma.user.create({
-      data: {
-        tenantId: context.tenant.id,
-        email: email.toLowerCase(),
-        name,
-      },
-    });
-
-    // Assign tenant_viewer role by default
-    const viewerRole = await prisma.tenantRole.findFirst({
-      where: { tenantId: context.tenant.id, name: 'tenant_viewer' },
-    });
-
-    if (viewerRole) {
-      await prisma.userRole.create({
+    // Create user and assign role in a transaction for atomicity
+    const user = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      const newUser = await tx.user.create({
         data: {
           tenantId: context.tenant.id,
-          userId: user.id,
-          roleId: viewerRole.id,
+          email: email.toLowerCase(),
+          name,
         },
       });
-    }
+
+      // Assign tenant_viewer role by default (lazily creates if needed)
+      await RbacService.assignRole(context.tenant.id, newUser.id, 'tenant_viewer', context.user.id, tx);
+
+      return newUser;
+    });
 
     // Create audit event
     await AuditService.create({

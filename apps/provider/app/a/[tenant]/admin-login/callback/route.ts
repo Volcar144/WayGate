@@ -32,6 +32,7 @@ export async function GET(req: NextRequest) {
 
     // Find or create user with role assignment in a transaction
     // This prevents race conditions for the first-user admin assignment
+    // Uses Serializable isolation to prevent concurrent "first user" detection
     const { user, isFirstUser } = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       // Try to find existing user
       let existingUser = await tx.user.findUnique({
@@ -55,12 +56,13 @@ export async function GET(req: NextRequest) {
         });
 
         // Assign role based on whether this is the first user
+        // Pass transaction client to ensure atomicity
         const roleName = isFirst ? 'tenant_admin' : 'tenant_viewer';
-        await RbacService.assignRole(tenant.id, existingUser.id, roleName, existingUser.id);
+        await RbacService.assignRole(tenant.id, existingUser.id, roleName, existingUser.id, tx);
       }
 
       return { user: existingUser, isFirstUser: isFirst };
-    });
+    }, { isolationLevel: 'Serializable' });
 
     // Check if user has tenant_admin role
     const roles = await RbacService.getUserRoles(tenant.id, user.id);
