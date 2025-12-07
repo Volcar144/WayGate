@@ -11,4 +11,127 @@ export default function LoginPage() {
   const [formData, setFormData] = useState({
     email: '',
     password: '',
-  });\n\n  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {\n    const { name, value } = e.target;\n    setFormData((prev) => ({ ...prev, [name]: value }));\n    setError(null);\n  };\n\n  const handleSubmit = async (e: React.FormEvent) => {\n    e.preventDefault();\n    setLoading(true);\n    setError(null);\n\n    try {\n      const response = await fetch('/api/auth/login', {\n        method: 'POST',\n        headers: { 'Content-Type': 'application/json' },\n        body: JSON.stringify({\n          email: formData.email,\n          password: formData.password,\n        }),\n      });\n\n      if (!response.ok) {\n        const data = await response.json();\n        throw new Error(data.error || 'Login failed');\n      }\n\n      const data = await response.json();\n      router.push(`/a/${data.tenantSlug}/admin`);\n    } catch (err) {\n      setError(err instanceof Error ? err.message : 'An error occurred');\n    } finally {\n      setLoading(false);\n    }\n  };\n\n  return (\n    <div className=\"min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 flex items-center justify-center px-4\">\n      <div className=\"w-full max-w-md\">\n        {/* Header */}\n        <div className=\"text-center mb-8\">\n          <Link href=\"/\" className=\"text-2xl font-bold text-indigo-600 hover:text-indigo-700 inline-block\">\n            🔐 Waygate\n          </Link>\n          <h1 className=\"text-3xl font-bold text-gray-900 mt-6 mb-2\">Sign In</h1>\n          <p className=\"text-gray-600\">Access your tenant administration panel</p>\n        </div>\n\n        {/* Form Card */}\n        <div className=\"bg-white rounded-xl shadow-lg p-8\">\n          {error && (\n            <div className=\"mb-6 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm\">\n              {error}\n            </div>\n          )}\n\n          <form onSubmit={handleSubmit} className=\"space-y-5\">\n            {/* Email */}\n            <div>\n              <label className=\"block text-sm font-medium text-gray-700 mb-2\">Email Address</label>\n              <input\n                type=\"email\"\n                name=\"email\"\n                value={formData.email}\n                onChange={handleChange}\n                placeholder=\"admin@example.com\"\n                className=\"input-field\"\n                required\n              />\n            </div>\n\n            {/* Password */}\n            <div>\n              <label className=\"block text-sm font-medium text-gray-700 mb-2\">Password</label>\n              <input\n                type=\"password\"\n                name=\"password\"\n                value={formData.password}\n                onChange={handleChange}\n                placeholder=\"Enter your password\"\n                className=\"input-field\"\n                required\n              />\n            </div>\n\n            {/* Remember Me & Forgot Password */}\n            <div className=\"flex items-center justify-between text-sm\">\n              <label className=\"flex items-center\">\n                <input type=\"checkbox\" className=\"w-4 h-4 border border-gray-300 rounded cursor-pointer\" />\n                <span className=\"ml-2 text-gray-600\">Remember me</span>\n              </label>\n              <Link href=\"#\" className=\"text-indigo-600 hover:text-indigo-700 font-medium\">\n                Forgot password?\n              </Link>\n            </div>\n\n            {/* Submit Button */}\n            <button\n              type=\"submit\"\n              disabled={loading}\n              className=\"w-full btn-primary disabled:opacity-50 disabled:cursor-not-allowed mt-6\"\n            >\n              {loading ? 'Signing In...' : 'Sign In'}\n            </button>\n          </form>\n\n          {/* Divider */}\n          <div className=\"my-6 flex items-center\">\n            <div className=\"flex-1 border-t border-gray-300\"></div>\n            <span className=\"px-3 text-gray-500 text-sm\">or</span>\n            <div className=\"flex-1 border-t border-gray-300\"></div>\n          </div>\n\n          {/* Sign Up Link */}\n          <p className=\"text-center text-gray-600 text-sm\">\n            Don't have a tenant?{' '}\n            <Link href=\"/auth/signup\" className=\"text-indigo-600 hover:text-indigo-700 font-semibold\">\n              Create One\n            </Link>\n          </p>\n        </div>\n\n        {/* Demo Credentials */}\n        <div className=\"mt-8 p-4 bg-blue-50 border border-blue-200 rounded-lg\">\n          <p className=\"text-sm font-semibold text-blue-900 mb-2\">Demo Credentials</p>\n          <p className=\"text-xs text-blue-800\"><strong>Email:</strong> admin@example.com</p>\n          <p className=\"text-xs text-blue-800\"><strong>Password:</strong> password123</p>\n        </div>\n      </div>\n    </div>\n  );\n}
+  });
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setFormData((prev) => ({ ...prev, [name]: value }));
+    setError(null);
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
+
+    try {
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: formData.email,
+          password: formData.password,
+        }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Login failed');
+      }
+
+      const data = await response.json();
+      router.push(`/a/${data.tenantSlug}/admin`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'An error occurred');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 flex items-center justify-center px-4">
+      <div className="w-full max-w-md">
+        <div className="text-center mb-8">
+          <Link href="/" className="text-2xl font-bold text-indigo-600 hover:text-indigo-700 inline-block">
+            🔐 Waygate
+          </Link>
+          <h1 className="text-3xl font-bold text-gray-900 mt-6 mb-2">Sign In</h1>
+          <p className="text-gray-600">Access your tenant administration panel</p>
+        </div>
+
+        <div className="bg-white rounded-xl shadow-lg p-8">
+          {error && (
+            <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+              {error}
+            </div>
+          )}
+
+          <form onSubmit={handleSubmit} className="space-y-5">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Email Address</label>
+              <input
+                type="email"
+                name="email"
+                value={formData.email}
+                onChange={handleChange}
+                placeholder="admin@example.com"
+                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-600 focus:border-transparent"
+                required
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Password</label>
+              <input
+                type="password"
+                name="password"
+                value={formData.password}
+                onChange={handleChange}
+                placeholder="Enter your password"
+                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-600 focus:border-transparent"
+                required
+              />
+            </div>
+
+            <div className="flex items-center justify-between text-sm">
+              <label className="flex items-center">
+                <input type="checkbox" className="w-4 h-4 border border-gray-300 rounded cursor-pointer" />
+                <span className="ml-2 text-gray-600">Remember me</span>
+              </label>
+              <Link href="#" className="text-indigo-600 hover:text-indigo-700 font-medium">
+                Forgot password?
+              </Link>
+            </div>
+
+            <button
+              type="submit"
+              disabled={loading}
+               className="w-full px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition font-medium disabled:opacity-50 disabled:cursor-not-allowed mt-6"
+            >
+              {loading ? 'Signing In...' : 'Sign In'}
+            </button>
+          </form>
+
+          <div className="my-6 flex items-center">
+            <div className="flex-1 border-t border-gray-300"></div>
+            <span className="px-3 text-gray-500 text-sm">or</span>
+            <div className="flex-1 border-t border-gray-300"></div>
+          </div>
+
+          <p className="text-center text-gray-600 text-sm">
+            Don't have a tenant?{' '}
+            <Link href="/auth/signup" className="text-indigo-600 hover:text-indigo-700 font-semibold">
+              Create One
+            </Link>
+          </p>
+        </div>
+
+        <div className="mt-8 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+          <p className="text-sm font-semibold text-blue-900 mb-2">Demo Credentials</p>
+          <p className="text-xs text-blue-800"><strong>Email:</strong> admin@example.com</p>
+          <p className="text-xs text-blue-800"><strong>Password:</strong> password123</p>
+        </div>
+      </div>
+    </div>
+  );
+}

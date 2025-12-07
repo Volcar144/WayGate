@@ -5,7 +5,9 @@ export default function Home() {
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
       {/* Navigation */}
       <nav className="flex items-center justify-between px-6 py-4 md:px-12">
-        <div className="text-2xl font-bold text-indigo-600">🔐 Waygate</div>
+        <div className="text-2xl font-bold text-indigo-600">🔐 Waygate
+          
+        </div>
         <div className="flex gap-4">
           <Link
             href="/auth/login"

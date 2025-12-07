@@ -9,21 +9,20 @@ export async function POST(req: NextRequest) {
 
     if (!tenantName || !adminEmail || !password) {
       return NextResponse.json(
-        { error: 'Missing required fields' },
+        { error: 'Tenant name, email, and password are required' },
         { status: 400 }
       );
     }
 
-    // Create tenant slug from name
-    const tenantSlug = tenantName
+    // Generate slug from tenant name
+    const slug = tenantName
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-+|-+$/g, '')
-      .substring(0, 50);
+      .replace(/^-|-$/g, '');
 
-    // Check if tenant already exists
+    // Check if slug already exists
     const existingTenant = await prisma.tenant.findUnique({
-      where: { slug: tenantSlug },
+      where: { slug },
     });
 
     if (existingTenant) {
@@ -40,9 +39,45 @@ export async function POST(req: NextRequest) {
     const tenant = await prisma.tenant.create({
       data: {
         name: tenantName,
-        slug: tenantSlug,
+        slug,
       },
     });
 
     // Create admin user (tenant-scoped)
-    const user = await prisma.user.create({\n      data: {\n        tenantId: tenant.id,\n        email: adminEmail,\n        name: adminName || null,\n        passwordHash: hashedPassword,\n      },\n    });\n\n    // Assign tenant admin role\n    const adminRole = await prisma.tenantRole.findFirst({\n      where: { tenantId: tenant.id, name: 'tenant_admin' },\n    });\n\n    if (adminRole) {\n      await prisma.userRole.create({\n        data: {\n          tenantId: tenant.id,\n          userId: user.id,\n          roleId: adminRole.id,\n        },\n      });\n    }\n\n    // TODO: Set session cookie and return auth tokens\n    return NextResponse.json(\n      { tenantSlug: tenant.slug, userId: user.id },\n      { status: 201 }\n    );\n  } catch (error) {\n    console.error('Signup error:', error);\n    return NextResponse.json(\n      { error: error instanceof Error ? error.message : 'Signup failed' },\n      { status: 500 }\n    );\n  }\n}
+    const user = await prisma.user.create({
+      data: {
+        tenantId: tenant.id,
+        email: adminEmail,
+        name: adminName || null,
+        passwordHash: hashedPassword,
+      },
+    });
+
+    // Assign tenant admin role
+    const adminRole = await prisma.tenantRole.findFirst({
+      where: { tenantId: tenant.id, name: 'tenant_admin' },
+    });
+
+    if (adminRole) {
+      await prisma.userRole.create({
+        data: {
+          tenantId: tenant.id,
+          userId: user.id,
+          roleId: adminRole.id,
+        },
+      });
+    }
+
+    // TODO: Set session cookie and return auth tokens
+    return NextResponse.json(
+      { tenantSlug: tenant.slug, userId: user.id },
+      { status: 201 }
+    );
+  } catch (error) {
+    console.error('Signup error:', error);
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : 'Signup failed' },
+      { status: 500 }
+    );
+  }
+}
