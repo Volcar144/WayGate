@@ -63,12 +63,16 @@ export function middleware(req: NextRequest) {
       "base-uri 'self'",
       "frame-ancestors 'none'",
       "form-action 'self'",
-      // Allow SSE
-      "connect-src 'self'",
-      // Inline scripts will be allowed only via nonce in route responses
-      "script-src 'self'",
+      // Allow SSE and WebSocket connections
+      "connect-src 'self' wss: ws:",
+      // Scripts: allow self and inline (for Next.js internals)
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+      // Styles: allow self and inline
       "style-src 'self' 'unsafe-inline'",
-      "img-src 'self' data:",
+      // Images: allow self and data URIs
+      "img-src 'self' data: https:",
+      // Fonts: allow from self and Google Fonts
+      "font-src 'self' https://fonts.googleapis.com https://fonts.gstatic.com",
     ].join('; '),
   );
 
