@@ -34,7 +34,7 @@ export async function POST(req: NextRequest) {
 
   // In a real system, send email containing magic link to mt.email.
   // Provide a debug link for local/testing scenarios.
-  const issuer = getIssuerURL();
+  const issuer = await getIssuerURL();
   const magicUrl = `${issuer}/oauth/magic/consume${serializeParams({ token: mt.token })}`;
 
   // Attempt to send via SMTP if configured

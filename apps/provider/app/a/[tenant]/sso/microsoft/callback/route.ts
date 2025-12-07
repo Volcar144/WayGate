@@ -75,7 +75,7 @@ export async function GET(req: NextRequest) {
   if (!disc) return html('<h1>Microsoft sign-in failed</h1><p>Could not discover OIDC endpoints for the configured authority.</p>', 400);
 
   // Token exchange
-  const issuer = getIssuerURL();
+  const issuer = await getIssuerURL();
   const redirectUri = `${issuer}/sso/microsoft/callback`;
   let tokenResponse: any = null;
   try {
@@ -190,9 +190,10 @@ export async function GET(req: NextRequest) {
   }
 
   // Audit events
-  await (prisma as any).audit.create({ data: { tenantId: tenant.id, userId: user.id, action: 'login.sso.microsoft', ip: req.ip || null, userAgent: req.headers.get('user-agent') || null } });
+  const msIp = (req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || 'unknown') as string | null;
+  await (prisma as any).audit.create({ data: { tenantId: tenant.id, userId: user.id, action: 'login.sso.microsoft', ip: msIp || null, userAgent: req.headers.get('user-agent') || null } });
   if (linked) {
-    await (prisma as any).audit.create({ data: { tenantId: tenant.id, userId: user.id, action: 'idp.linked', ip: req.ip || null, userAgent: req.headers.get('user-agent') || null } });
+    await (prisma as any).audit.create({ data: { tenantId: tenant.id, userId: user.id, action: 'idp.linked', ip: msIp || null, userAgent: req.headers.get('user-agent') || null } });
   }
 
   // attach to pending
@@ -256,7 +257,7 @@ async function issueCodeAndBuildRedirect(params: { pending: any; userId: string 
     try {
       const alg = 'RS256';
       const key = await importJWK(priv as any, alg);
-      const issuer = getIssuerURL();
+      const issuer = await getIssuerURL();
       handoff = await new SignJWT({ sub: userId, rid: pending.rid, aud: pending.clientId })
         .setProtectedHeader({ alg, kid: (priv as any).kid })
         .setIssuer(issuer)

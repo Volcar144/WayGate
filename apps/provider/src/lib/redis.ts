@@ -102,7 +102,7 @@ export function namespacedChannel(channel: string, tenantSlug?: string): string 
  */
 export class TenantRedis {
   private client: RedisClient | null;
-  private tenantSlug: string | null;
+  private tenantSlug?: string;
 
   constructor(tenantSlug?: string) {
     this.tenantSlug = tenantSlug;

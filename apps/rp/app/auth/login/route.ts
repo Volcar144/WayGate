@@ -23,7 +23,8 @@ export async function GET() {
     created_at: Date.now(),
   };
   const isSecure = process.env.NODE_ENV === 'production';
-  cookies().set('rp_oidc', JSON.stringify(cookiePayload), {
+  const cookieStore = await cookies();
+  cookieStore.set('rp_oidc', JSON.stringify(cookiePayload), {
     httpOnly: true,
     secure: isSecure,
     sameSite: 'lax',

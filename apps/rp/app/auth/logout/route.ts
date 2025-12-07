@@ -11,7 +11,8 @@ import { discover } from '../../../src/waygate';
  */
 export async function POST(_req: NextRequest) {
   try {
-    const session = cookies().get('rp_session')?.value;
+    const cookieStore = await cookies();
+    const session = cookieStore.get('rp_session')?.value;
     if (session) {
       try {
         const parsed = JSON.parse(session) as { refresh_token?: string | null };
@@ -25,15 +26,22 @@ export async function POST(_req: NextRequest) {
           });
         }
       } catch (e) {
-        try { const Sentry = require('@sentry/nextjs'); Sentry.captureException(e); } catch {}
+        try { const Sentry = require('@sentry/nextjs'); Sentry.captureException(e); } catch (sentry_err) {
+          // Sentry unavailable
+          void sentry_err;
+        }
         console.error('Failed to notify provider logout', e);
       }
     }
   } catch (e) {
-    try { const Sentry = require('@sentry/nextjs'); Sentry.captureException(e); } catch {}
+    try { const Sentry = require('@sentry/nextjs'); Sentry.captureException(e); } catch (sentry_err) {
+      // Sentry unavailable
+      void sentry_err;
+    }
     console.error('Error during RP logout', e);
   }
-  cookies().delete('rp_session');
-  cookies().delete('rp_oidc');
+  const cookieStore = await cookies();
+  cookieStore.delete('rp_session');
+  cookieStore.delete('rp_oidc');
   return NextResponse.redirect('/');
 }

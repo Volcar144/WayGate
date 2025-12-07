@@ -37,7 +37,7 @@ export async function POST(req: NextRequest) {
   const tenant = await findTenantBySlug(tenantSlug);
   if (!tenant) return error(404, { error: 'invalid_request', error_description: 'unknown tenant' });
 
-  const ip = (req.ip as string | null) || req.headers.get('x-forwarded-for') || 'unknown';
+  const ip = (req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || 'unknown') as string | null;
   const keys = buildRegisterRateLimitKeys({ tenant: tenantSlug, ip });
   const cfg = getRegisterRateLimitConfig(tenantSlug);
   const rl = await rateLimitTake(keys.byIp, cfg.ipLimit, cfg.windowMs);

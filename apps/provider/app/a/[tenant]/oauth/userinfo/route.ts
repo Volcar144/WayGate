@@ -25,7 +25,7 @@ export async function GET(req: NextRequest) {
   try {
     const jwks = await getJWKSForTenant(tenant.id);
     const JWKS = createLocalJWKSet({ keys: jwks.keys as any });
-    const issuer = getIssuerURL();
+    const issuer = await getIssuerURL();
     const { payload } = await jwtVerify(token, JWKS, { issuer, algorithms: ['RS256'] });
     const sub = String(payload.sub || '');
     if (!sub) return error(401, 'invalid_token');

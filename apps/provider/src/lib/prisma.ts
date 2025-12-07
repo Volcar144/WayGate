@@ -18,7 +18,7 @@ try {
   // Lazy import to avoid bundling issues if Sentry not installed
   // eslint-disable-next-line @typescript-eslint/no-var-requires
   const Sentry = require('@sentry/nextjs');
-  prisma.$on('query', (e: any) => {
+  (prisma as any).$on('query', (e: any) => {
     try {
       const sanitize = (q: string) => q.replace(/'(?:[^'\\]|\\.)*'/g, "'<redacted>'");
       Sentry.addBreadcrumb({

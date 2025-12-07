@@ -57,7 +57,7 @@ export async function GET(req: NextRequest) {
   if (!provider) return html('<h1>GitHub sign-in not configured</h1><p>Please contact your administrator.</p>', 400);
 
   // Token exchange
-  const issuer = getIssuerURL();
+  const issuer = await getIssuerURL();
   const redirectUri = `${issuer}/sso/github/callback`;
   let tokenResponse: any = null;
   try {
@@ -166,7 +166,7 @@ export async function GET(req: NextRequest) {
   linked = !existingLink;
 
   // Audit events
-  const ip = req.ip || req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || null;
+  const ip = (req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || req.headers.get('x-real-ip') || null) as string | null;
   await (prisma as any).audit.create({ data: { tenantId: tenant.id, userId: user.id, action: 'login.sso.github', ip, userAgent: req.headers.get('user-agent') || null } });
   if (linked) {
     await (prisma as any).audit.create({ data: { tenantId: tenant.id, userId: user.id, action: 'idp.linked', ip, userAgent: req.headers.get('user-agent') || null } });
@@ -233,7 +233,7 @@ async function issueCodeAndBuildRedirect(params: { pending: any; userId: string 
     try {
       const alg = 'RS256';
       const key = await importJWK(priv as any, alg);
-      const issuer = getIssuerURL();
+      const issuer = await getIssuerURL();
       handoff = await new SignJWT({ sub: userId, rid: pending.rid, aud: pending.clientId })
         .setProtectedHeader({ alg, kid: (priv as any).kid })
         .setIssuer(issuer)

@@ -44,7 +44,8 @@ export async function POST(req: NextRequest) {
       update: { scopes },
       create: { tenantId: pending.tenantId, userId: pending.userId, clientId: pending.clientDbId, scopes },
     });
-    await (prisma as any).audit.create({ data: { tenantId: pending.tenantId, userId: pending.userId, action: 'consent.granted', ip: req.ip || null, userAgent: req.headers.get('user-agent') || null } });
+    const consentIp = (req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || 'unknown') as string | null;
+    await (prisma as any).audit.create({ data: { tenantId: pending.tenantId, userId: pending.userId, action: 'consent.granted', ip: consentIp || null, userAgent: req.headers.get('user-agent') || null } });
   }
 
   // Issue code
@@ -83,7 +84,7 @@ export async function POST(req: NextRequest) {
   if (priv) {
     try {
       const key = await importJWK(priv as any, 'RS256');
-      const issuer = getIssuerURL();
+      const issuer = await getIssuerURL();
       handoff = await new SignJWT({ sub: pending.userId, rid: pending.rid, aud: pending.clientId })
         .setProtectedHeader({ alg: 'RS256', kid: (priv as any).kid })
         .setIssuer(issuer)

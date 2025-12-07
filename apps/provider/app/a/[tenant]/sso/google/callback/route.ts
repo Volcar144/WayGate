@@ -48,7 +48,7 @@ export async function GET(req: NextRequest) {
   if (!provider) return html('<h1>Google sign-in not configured</h1><p>Please contact your administrator.</p>', 400);
 
   // Token exchange
-  const issuer = getIssuerURL();
+  const issuer = await getIssuerURL();
   const redirectUri = `${issuer}/sso/google/callback`;
   let tokenResponse: any = null;
   try {
@@ -152,9 +152,10 @@ export async function GET(req: NextRequest) {
   }
 
   // Audit events
-  await (prisma as any).audit.create({ data: { tenantId: tenant.id, userId: user.id, action: 'login.sso.google', ip: req.ip || null, userAgent: req.headers.get('user-agent') || null } });
+  const googleIp = (req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || undefined) as string | undefined;
+  await (prisma as any).audit.create({ data: { tenantId: tenant.id, userId: user.id, action: 'login.sso.google', ip: googleIp ?? undefined, userAgent: req.headers.get('user-agent') ?? undefined } });
   if (linked) {
-    await (prisma as any).audit.create({ data: { tenantId: tenant.id, userId: user.id, action: 'idp.linked', ip: req.ip || null, userAgent: req.headers.get('user-agent') || null } });
+    await (prisma as any).audit.create({ data: { tenantId: tenant.id, userId: user.id, action: 'idp.linked', ip: googleIp ?? undefined, userAgent: req.headers.get('user-agent') ?? undefined } });
   }
 
   // attach to pending
@@ -218,7 +219,7 @@ async function issueCodeAndBuildRedirect(params: { pending: any; userId: string 
     try {
       const alg = 'RS256';
       const key = await importJWK(priv as any, alg);
-      const issuer = getIssuerURL();
+      const issuer = await getIssuerURL();
       handoff = await new SignJWT({ sub: userId, rid: pending.rid, aud: pending.clientId })
         .setProtectedHeader({ alg, kid: (priv as any).kid })
         .setIssuer(issuer)

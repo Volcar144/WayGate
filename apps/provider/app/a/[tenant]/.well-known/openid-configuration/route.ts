@@ -13,7 +13,7 @@ export async function GET() {
   const tenantSlug = getTenant();
   if (!tenantSlug) return NextResponse.json({ error: 'missing tenant' }, { status: 400 });
 
-  const issuer = getIssuerURL();
+  const issuer = await getIssuerURL();
 
   const cfg = {
     issuer,

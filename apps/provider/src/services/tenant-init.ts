@@ -258,7 +258,7 @@ export class TenantInitializationService {
       message: string;
     }[];
   }> {
-    const checks = [];
+    const checks: { name: string; status: 'pass' | 'fail' | 'warn'; message: string }[] = [];
 
     // Check tenant exists
     const tenant = await prisma.tenant.findUnique({

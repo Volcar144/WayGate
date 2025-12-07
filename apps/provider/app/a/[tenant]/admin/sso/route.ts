@@ -39,7 +39,7 @@ function html(body: string, status = 200, headers?: HeadersInit) {
 
 export async function GET() {
   const tenant = getTenant();
-  const issuer = getIssuerURL();
+  const issuer = await getIssuerURL();
   const t = tenant || 'unknown';
   const logoInitial = (t.match(/[a-z0-9]/i)?.[0] || '#').toUpperCase();
   const nonce = crypto.randomUUID().replace(/-/g, '');

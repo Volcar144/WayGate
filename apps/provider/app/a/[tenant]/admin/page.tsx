@@ -29,7 +29,7 @@ export default async function AdminOverview() {
   }
 
   const tenant = await requireTenant();
-  const issuer = getIssuerURL();
+  const issuer = await getIssuerURL();
 
   // TODO: Add RBAC check here - for now, we'll allow all authenticated users
   const data = await getOverviewData(tenant.id);

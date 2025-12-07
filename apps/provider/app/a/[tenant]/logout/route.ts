@@ -57,7 +57,8 @@ export async function POST(req: NextRequest) {
     await (prisma as any).refreshToken.updateMany({ where: { sessionId: sid }, data: { revoked: true } });
     await (prisma as any).session.update({ where: { id: sid }, data: { expiresAt: new Date() } }).catch(() => {});
 
-    await (prisma as any).audit.create({ data: { tenantId: tenant.id, userId: null, action: 'session.logout', ip: (req.ip as any) || null, userAgent: req.headers.get('user-agent') || null } });
+    const logoutIp = (req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || 'unknown') as string | null;
+    await (prisma as any).audit.create({ data: { tenantId: tenant.id, userId: null, action: 'session.logout', ip: logoutIp || null, userAgent: req.headers.get('user-agent') || null } });
 
     return json(200, { ok: true });
   } catch (e) {

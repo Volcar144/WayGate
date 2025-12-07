@@ -46,7 +46,7 @@ function buildRequestContext(req: NextRequest): FlowRequestContext {
     }
   });
   return {
-    ip: (req.ip as string | null) || req.headers.get('x-forwarded-for') || null,
+    ip: (req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || null) as string | null,
     userAgent: req.headers.get('user-agent'),
     headers,
   };
@@ -163,7 +163,7 @@ function renderCaptcha(prompt: FlowPromptDescriptor) {
 function collectSubmission(form: FormData): FlowPromptSubmission {
   const action = String(form.get('flow_action') || 'submit');
   const fields: Record<string, string | null> = {};
-  for (const [key, value] of form.entries()) {
+    for (const [key, value] of (form as any).entries()) {
     if (key === 'flow_run_id' || key === 'flow_resume_token' || key === 'flow_action') continue;
     fields[key] = typeof value === 'string' ? value : value?.toString() ?? '';
   }
@@ -187,11 +187,36 @@ export async function GET(req: NextRequest) {
   let user = await (prisma as any).user.findUnique({ where: { tenantId_email: { tenantId: tenant.id, email: mt.email } } });
   if (!user) {
     user = await (prisma as any).user.create({ data: { tenantId: tenant.id, email: mt.email, name: null } });
+    
+    // Auto-assign admin role to first user in tenant
+    try {
+      const userCount = await (prisma as any).user.count({ where: { tenantId: tenant.id } });
+      if (userCount === 1) {
+        // This is the first user, find admin role and assign it
+        const adminRole = await (prisma as any).tenantRole.findFirst({
+          where: { tenantId: tenant.id, name: 'Tenant Admin' }
+        });
+        if (adminRole) {
+          await (prisma as any).userRole.create({
+            data: {
+              tenantId: tenant.id,
+              userId: user.id,
+              roleId: adminRole.id,
+              assignedBy: user.id
+            }
+          });
+        }
+      }
+    } catch (err) {
+      // Log but don't fail - admin assignment is not critical for login flow
+      console.error('Failed to auto-assign admin role to first user', err);
+    }
   }
 
   await setPendingUser(pending.rid, user.id);
 
-  await (prisma as any).audit.create({ data: { tenantId: tenant.id, userId: user.id, action: 'login.magic', ip: req.ip || null, userAgent: req.headers.get('user-agent') || null } });
+  const auditIp = (req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || 'unknown') as string | null;
+  await (prisma as any).audit.create({ data: { tenantId: tenant.id, userId: user.id, action: 'login.magic', ip: auditIp || null, userAgent: req.headers.get('user-agent') || null } });
 
   const flowResult = await startFlowRun({
     tenantId: tenant.id,
@@ -321,7 +346,7 @@ async function issueCodeAndBuildRedirect(params: { pending: PendingAuthRequest; 
   if (priv) {
     try {
       const key = await importJWK(priv as any, 'RS256');
-      const issuer = getIssuerURL();
+      const issuer = await getIssuerURL();
       handoff = await new SignJWT({ sub: userId, rid: pending.rid, aud: pending.clientId })
         .setProtectedHeader({ alg: 'RS256', kid: (priv as any).kid })
         .setIssuer(issuer)

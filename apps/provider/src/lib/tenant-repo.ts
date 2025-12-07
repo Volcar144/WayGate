@@ -325,7 +325,13 @@ export async function verifyTenantOwnership(
       resource = await prisma.identityProvider.findFirst({ where: { id: resourceId, tenantId: expectedTenantId } });
       break;
     case 'audit':
-      resource = await prisma.audit.findFirst({ where: { id: resourceId, tenantId: expectedTenantId } });
+      // Audit.id is a BigInt in the schema, convert incoming string id to BigInt
+      try {
+        const auditId = BigInt(resourceId as string);
+        resource = await prisma.audit.findFirst({ where: { id: auditId as any, tenantId: expectedTenantId } });
+      } catch (e) {
+        throw new Error('Invalid audit id');
+      }
       break;
     default:
       throw new Error(`Unknown resource type: ${resourceType}`);

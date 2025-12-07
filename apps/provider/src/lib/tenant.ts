@@ -3,7 +3,9 @@ import { headers } from 'next/headers';
 export const TENANT_HEADER = 'x-tenant';
 
 export function getTenant(): string | null {
-  const h = headers();
+  // `headers()` has different runtime typings depending on Next.js version/environment.
+  // Cast to a minimal interface with `get` to keep synchronous callers working.
+  const h = headers() as unknown as { get: (name: string) => string | null };
   const t = h.get(TENANT_HEADER);
   return t ?? null;
 }

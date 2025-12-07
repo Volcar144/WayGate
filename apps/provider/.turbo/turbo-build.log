@@ -1,0 +1,40 @@
+
+
+> provider@0.1.0 build /workspaces/WayGate/apps/provider
+> NEXT_LINT=false next build
+
+   [1m[38;2;173;127;168m▲ Next.js 15.5.7[39m[22m
+   - Environments: .env
+
+ [37m[1m [22m[39m Creating an optimized production build ...
+ ⚠ Compiled with warnings in 44s
+
+../../node_modules/.pnpm/@opentelemetry+instrumentation@0.57.1_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/instrumentation/build/esm/platform/node/instrumentation.js
+Critical dependency: the request of a dependency is an expression
+
+Import trace for requested module:
+../../node_modules/.pnpm/@opentelemetry+instrumentation@0.57.1_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/instrumentation/build/esm/platform/node/instrumentation.js
+../../node_modules/.pnpm/@opentelemetry+instrumentation@0.57.1_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/instrumentation/build/esm/platform/node/index.js
+../../node_modules/.pnpm/@opentelemetry+instrumentation@0.57.1_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/instrumentation/build/esm/platform/index.js
+../../node_modules/.pnpm/@opentelemetry+instrumentation@0.57.1_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/instrumentation/build/esm/index.js
+../../node_modules/.pnpm/@opentelemetry+instrumentation-http@0.57.1_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/instrumentation-http/build/src/http.js
+../../node_modules/.pnpm/@opentelemetry+instrumentation-http@0.57.1_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/instrumentation-http/build/src/index.js
+../../node_modules/.pnpm/@sentry+node@8.55.0/node_modules/@sentry/node/build/cjs/integrations/http/index.js
+../../node_modules/.pnpm/@sentry+node@8.55.0/node_modules/@sentry/node/build/cjs/index.js
+../../node_modules/.pnpm/@sentry+nextjs@8.55.0_@opentelemetry+context-async-hooks@1.30.1_@opentelemetry+api@1.9.0__@op_srax7fey3wtqbr3nkhogeve2hi/node_modules/@sentry/nextjs/build/cjs/index.server.js
+./app/a/[tenant]/logout/route.ts
+
+../../node_modules/.pnpm/require-in-the-middle@7.5.2/node_modules/require-in-the-middle/index.js
+Critical dependency: require function is used in a way in which dependencies cannot be statically extracted
+
+Import trace for requested module:
+../../node_modules/.pnpm/require-in-the-middle@7.5.2/node_modules/require-in-the-middle/index.js
+../../node_modules/.pnpm/@opentelemetry+instrumentation@0.57.2_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/instrumentation/build/esm/platform/node/instrumentation.js
+../../node_modules/.pnpm/@opentelemetry+instrumentation@0.57.2_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/instrumentation/build/esm/platform/node/index.js
+../../node_modules/.pnpm/@opentelemetry+instrumentation@0.57.2_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/instrumentation/build/esm/platform/index.js
+../../node_modules/.pnpm/@opentelemetry+instrumentation@0.57.2_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/instrumentation/build/esm/index.js
+../../node_modules/.pnpm/@sentry+opentelemetry@8.55.0_@opentelemetry+api@1.9.0_@opentelemetry+context-async-hooks@1.30_xlp5yymgznyjvhdlak2qvgb6lm/node_modules/@sentry/opentelemetry/build/cjs/index.js
+../../node_modules/.pnpm/@sentry+nextjs@8.55.0_@opentelemetry+context-async-hooks@1.30.1_@opentelemetry+api@1.9.0__@op_srax7fey3wtqbr3nkhogeve2hi/node_modules/@sentry/nextjs/build/cjs/server/index.js
+../../node_modules/.pnpm/@sentry+nextjs@8.55.0_@opentelemetry+context-async-hooks@1.30.1_@opentelemetry+api@1.9.0__@op_srax7fey3wtqbr3nkhogeve2hi/node_modules/@sentry/nextjs/build/cjs/index.server.js
+./app/a/[tenant]/logout/route.ts
+

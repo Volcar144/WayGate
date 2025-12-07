@@ -183,15 +183,15 @@ function getMemoryStore(): FlowMemoryStore {
   return g.__flowStore;
 }
 
-function sanitizeContext(ctx: FlowContext): FlowContext {
-  return JSON.parse(JSON.stringify(ctx));
+function sanitizeContext(ctx: FlowContext): Prisma.InputJsonValue {
+  return JSON.parse(JSON.stringify(ctx)) as Prisma.InputJsonValue;
 }
 
 function parseContext(raw: Prisma.JsonValue | null): FlowContext {
   if (!raw || typeof raw !== 'object') {
     throw new Error('invalid flow context');
   }
-  return raw as FlowContext;
+  return raw as unknown as FlowContext;
 }
 
 function parsePromptSchema(data: Prisma.JsonValue | null): PromptSchema {
@@ -332,7 +332,7 @@ async function recordEvent(
         flowRunId: runId,
         nodeId,
         type,
-        metadata: metadata ?? null,
+        metadata: metadata ? (metadata as unknown as Prisma.InputJsonValue) : undefined,
       },
     });
   } catch (err) {
@@ -407,9 +407,9 @@ async function verifyCaptcha(
 ): Promise<{ success: boolean; score?: number }> {
   if (cfg.provider === 'turnstile') {
     const form = new URLSearchParams();
-    form.set('secret', cfg.secretKey);
+    if (cfg.secretKey) form.set('secret', cfg.secretKey);
     form.set('response', token);
-    if (remoteIp) form.set('remoteip', remoteIp);
+    if (typeof remoteIp === 'string') form.set('remoteip', remoteIp);
     const res = await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', {
       method: 'POST',
       body: form,
@@ -419,9 +419,9 @@ async function verifyCaptcha(
   }
   if (cfg.provider === 'hcaptcha') {
     const form = new URLSearchParams();
-    form.set('secret', cfg.secretKey);
+    if (cfg.secretKey) form.set('secret', cfg.secretKey);
     form.set('response', token);
-    if (remoteIp) form.set('remoteip', remoteIp);
+    if (typeof remoteIp === 'string') form.set('remoteip', remoteIp);
     const res = await fetch('https://hcaptcha.com/siteverify', { method: 'POST', body: form });
     const data = (await res.json()) as { success: boolean; score?: number };
     return { success: !!data.success, score: data.score };
@@ -490,12 +490,12 @@ async function writeUserMetadata(tenantId: string, userId: string, cfg: Metadata
         namespace: cfg.namespace,
       },
     },
-    update: { data: cfg.values },
+    update: { data: cfg.values as Prisma.InputJsonValue },
     create: {
       tenantId,
       userId,
       namespace: cfg.namespace,
-      data: cfg.values,
+      data: cfg.values as Prisma.InputJsonValue,
     },
   });
 }
@@ -635,9 +635,10 @@ async function runLoop(args: RunLoopArgs): Promise<FlowEngineResult> {
   while (current && steps < maxIterations) {
     steps += 1;
     try {
+      const nodeType = String(current.type);
       await recordEvent(args.run.tenantId, args.run.id, current.id, resumeHandled ? 'resume' : 'enter');
 
-      if (current.type === 'read_signals') {
+      if (nodeType === 'read_signals') {
         enhanceSignals(args.context, args.request);
         await updateRunContext(args.run.id, args.context, current.id);
         await recordEvent(args.run.tenantId, args.run.id, current.id, 'exit');
@@ -645,12 +646,14 @@ async function runLoop(args: RunLoopArgs): Promise<FlowEngineResult> {
         continue;
       }
 
-      if (current.type === 'geolocation_check') {
+      if (nodeType === 'geolocation_check') {
         // ensure signals populated
         enhanceSignals(args.context, args.request);
         const cfg = sanitizeConfig<GeolocationCheckConfig>(current.config, { namespace: 'default', key: 'last_login_country', requireSame: true, treatMissingAsMismatch: false });
+        const namespace = cfg.namespace ?? 'default';
+        const key = cfg.key ?? 'last_login_country';
         const currentCountry = args.context.signals?.geo?.country || null;
-        const last = args.context.metadata?.[cfg.namespace]?.[cfg.key] ?? null;
+        const last = args.context.metadata?.[namespace]?.[key] ?? null;
         if (!currentCountry) {
           // cannot determine geo -> continue
           await updateRunContext(args.run.id, args.context, current.id);
@@ -675,9 +678,9 @@ async function runLoop(args: RunLoopArgs): Promise<FlowEngineResult> {
 
         // no mismatch - update in-memory context so later metadata_write can merge/persist if desired
         if (!args.context.metadata) args.context.metadata = {};
-        if (!args.context.metadata[cfg.namespace]) args.context.metadata[cfg.namespace] = {};
+        if (!args.context.metadata[namespace]) args.context.metadata[namespace] = {};
         try {
-          (args.context.metadata[cfg.namespace] as any)[cfg.key as string] = currentCountry;
+          (args.context.metadata[namespace] as any)[key as string] = currentCountry;
         } catch {}
         await updateRunContext(args.run.id, args.context, current.id);
         await recordEvent(args.run.tenantId, args.run.id, current.id, 'exit', { mismatch: false, currentCountry });
@@ -685,7 +688,7 @@ async function runLoop(args: RunLoopArgs): Promise<FlowEngineResult> {
         continue;
       }
 
-      if (current.type === 'check_captcha') {
+      if (nodeType === 'check_captcha') {
         const result = await handleCaptchaNode(args, flow, current);
         if (result.kind === 'prompt') {
           return promptResult(args.run, flow, current, result.prompt, result.ttlSeconds, args.tenantSlug, args.context);
@@ -700,7 +703,7 @@ async function runLoop(args: RunLoopArgs): Promise<FlowEngineResult> {
         continue;
       }
 
-      if (current.type === 'prompt_ui' || current.type === 'require_reauth') {
+      if (nodeType === 'prompt_ui' || nodeType === 'require_reauth') {
         const result = await handlePromptNode(args, flow, current);
         if (result.kind === 'prompt') {
           return promptResult(args.run, flow, current, result.prompt, result.ttlSeconds, args.tenantSlug, args.context);
@@ -715,15 +718,115 @@ async function runLoop(args: RunLoopArgs): Promise<FlowEngineResult> {
         continue;
       }
 
-      if (current.type === 'metadata_write') {
+      if (nodeType === 'metadata_write') {
         const ok = await handleMetadataWriteNode(args, current);
         if (!ok.success) {
-          await markRunFailure(args.run.id, args.run.tenantId, args.context, ok.message);
-          return { type: 'error', runId: args.run.id, message: ok.message };
+          const msg = ok.message ?? 'metadata_write_failed';
+          await markRunFailure(args.run.id, args.run.tenantId, args.context, msg);
+          return { type: 'error', runId: args.run.id, message: msg };
         }
         await recordEvent(args.run.tenantId, args.run.id, current.id, 'exit');
         current = nextNodeResolver(current, flow);
         continue;
+      }
+
+      if (nodeType === 'mfa_challenge') {
+        // MFA challenge node: prompt user to choose which MFA method to use
+        const schema: PromptSchema = {
+          fields: [
+            {
+              id: 'mfa_method',
+              label: 'Choose verification method',
+              type: 'radio',
+              required: true,
+              options: [
+                { value: 'totp', label: 'Authenticator app (TOTP)' },
+                { value: 'sms', label: 'Text message (SMS)' },
+                { value: 'email', label: 'Email code' },
+                { value: 'webauthn', label: 'Security key (WebAuthn)' },
+              ],
+            },
+          ],
+          actions: [{ id: 'continue', label: 'Continue', variant: 'primary' }],
+          submitLabel: 'Verify',
+        };
+        const descriptor = ensurePromptDescriptor(flow, current, schema, 'default', undefined, {
+          mfaMethods: ['totp', 'sms', 'email', 'webauthn'],
+        });
+        return promptResult(args.run, flow, current, descriptor, 600, args.tenantSlug, args.context);
+      }
+
+      if (nodeType === 'mfa_totp_verify') {
+        // TOTP verification: prompt for 6-digit code from authenticator app
+        const schema: PromptSchema = {
+          fields: [
+            {
+              id: 'totp_code',
+              label: 'Enter 6-digit code from your authenticator',
+              type: 'otp',
+              required: true,
+              placeholder: '000000',
+            },
+          ],
+          submitLabel: 'Verify',
+        };
+        const descriptor = ensurePromptDescriptor(flow, current, schema, 'default', undefined, {
+          mfaMethod: 'totp',
+        });
+        return promptResult(args.run, flow, current, descriptor, 300, args.tenantSlug, args.context);
+      }
+
+      if (nodeType === 'mfa_sms_verify') {
+        // SMS verification: prompt for code sent via SMS
+        const schema: PromptSchema = {
+          fields: [
+            {
+              id: 'sms_code',
+              label: 'Enter code sent to your phone',
+              type: 'otp',
+              required: true,
+              placeholder: '000000',
+            },
+          ],
+          submitLabel: 'Verify',
+        };
+        const descriptor = ensurePromptDescriptor(flow, current, schema, 'default', undefined, {
+          mfaMethod: 'sms',
+        });
+        return promptResult(args.run, flow, current, descriptor, 600, args.tenantSlug, args.context);
+      }
+
+      if (nodeType === 'mfa_email_verify') {
+        // Email verification: prompt for code sent via email
+        const schema: PromptSchema = {
+          fields: [
+            {
+              id: 'email_code',
+              label: 'Enter code sent to your email',
+              type: 'otp',
+              required: true,
+              placeholder: '000000',
+            },
+          ],
+          submitLabel: 'Verify',
+        };
+        const descriptor = ensurePromptDescriptor(flow, current, schema, 'default', undefined, {
+          mfaMethod: 'email',
+        });
+        return promptResult(args.run, flow, current, descriptor, 900, args.tenantSlug, args.context);
+      }
+
+      if (nodeType === 'mfa_webauthn_verify') {
+        // WebAuthn verification: prompt for security key
+        const schema: PromptSchema = {
+          fields: [],
+          submitLabel: 'Verify with Security Key',
+        };
+        const descriptor = ensurePromptDescriptor(flow, current, schema, 'default', undefined, {
+          mfaMethod: 'webauthn',
+          webauthnChallenge: crypto.randomUUID(),
+        });
+        return promptResult(args.run, flow, current, descriptor, 600, args.tenantSlug, args.context);
       }
 
       if (current.type === 'finish') {
@@ -899,14 +1002,16 @@ async function handlePromptNode(
   const schema = node.uiPrompt ? parsePromptSchema(node.uiPrompt.schema as Prisma.JsonValue) : { fields: [] };
   const storageKey = cfg.storeAs || node.id;
   if (!args.resumeSubmission) {
-    const prompt = ensurePromptDescriptor(flow, node, schema, node.type === 'require_reauth' ? 'reauth' : 'default');
-    return { kind: 'prompt', prompt, ttlSeconds: node.uiPrompt?.timeoutSec || 600 };
+    const nodeType = String(node.type);
+    const prompt = ensurePromptDescriptor(flow, node, schema, nodeType === 'require_reauth' ? 'reauth' : 'default');
+    return { kind: 'prompt', prompt, ttlSeconds: node.uiPrompt?.timeoutSec ?? 600 };
   }
   const submission = args.resumeSubmission;
   const missingField = schema.fields.find((field) => field.required && !submission.fields[field.id]);
   if (missingField) {
-    const prompt = ensurePromptDescriptor(flow, node, schema, node.type === 'require_reauth' ? 'reauth' : 'default', `${missingField.label} is required`);
-    return { kind: 'prompt', prompt, ttlSeconds: node.uiPrompt?.timeoutSec || 600 };
+    const nodeType = String(node.type);
+    const prompt = ensurePromptDescriptor(flow, node, schema, nodeType === 'require_reauth' ? 'reauth' : 'default', `${missingField.label} is required`);
+    return { kind: 'prompt', prompt, ttlSeconds: node.uiPrompt?.timeoutSec ?? 600 };
   }
   if (!args.context.prompts) args.context.prompts = {};
   args.context.prompts[storageKey] = {

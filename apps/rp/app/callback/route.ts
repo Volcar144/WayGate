@@ -25,7 +25,8 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'invalid_request' }, { status: 400 });
   }
 
-  const stateCookie = cookies().get('rp_oidc')?.value;
+  const cookieStore = await cookies();
+  const stateCookie = cookieStore.get('rp_oidc')?.value;
   if (!stateCookie) return NextResponse.json({ error: 'invalid_request', error_description: 'missing_state' }, { status: 400 });
   let parsed: { state: string; verifier: string; nonce: string } | null = null;
   try {
@@ -63,14 +64,14 @@ export async function GET(req: NextRequest) {
   }
 
   const isSecure = process.env.NODE_ENV === 'production';
-  cookies().set('rp_session', JSON.stringify({ id_token: idToken, access_token: accessToken, refresh_token: refreshToken ?? null, created_at: Date.now() }), {
+  cookieStore.set('rp_session', JSON.stringify({ id_token: idToken, access_token: accessToken, refresh_token: refreshToken ?? null, created_at: Date.now() }), {
     httpOnly: true,
     secure: isSecure,
     sameSite: 'lax',
     path: '/',
     maxAge: 30 * 24 * 60 * 60,
   });
-  cookies().delete('rp_oidc');
+  cookieStore.delete('rp_oidc');
 
   // On success, redirect to a protected page
   return NextResponse.redirect('/protected');

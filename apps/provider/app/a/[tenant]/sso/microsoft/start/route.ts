@@ -60,7 +60,7 @@ export async function GET(req: NextRequest) {
     providerType: 'microsoft',
   });
 
-  const issuer = getIssuerURL();
+  const issuer = await getIssuerURL();
   const redirectUri = `${issuer}/sso/microsoft/callback`;
 
   const scope = (provider.scopes && provider.scopes.length > 0 ? provider.scopes : ['openid', 'email', 'profile', 'offline_access']).join(' ');

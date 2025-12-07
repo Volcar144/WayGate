@@ -2,7 +2,7 @@ import { headers } from 'next/headers';
 import { env } from '@/env';
 import { getTenant } from '@/lib/tenant';
 
-export function getIssuerURL(): string {
+export async function getIssuerURL(): Promise<string> {
   const tenant = getTenant();
   // Precedence: explicit ISSUER_URL env overrides dynamic detection
   if (env.ISSUER_URL) {
@@ -13,7 +13,7 @@ export function getIssuerURL(): string {
     return env.ISSUER_URL;
   }
 
-  const h = headers();
+  const h = await headers();
   const proto = h.get('x-forwarded-proto') ?? 'http';
   const host = h.get('host');
 

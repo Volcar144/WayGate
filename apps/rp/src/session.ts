@@ -30,7 +30,8 @@ export async function getSession(): Promise<{
   idClaims?: Claims;
   accessClaims?: Claims;
 }> {
-  const raw = cookies().get('rp_session')?.value;
+  const cookieStore = await cookies();
+  const raw = cookieStore.get('rp_session')?.value;
   if (!raw) return { session: null };
   let sess: SessionCookie | null = null;
   try {
@@ -39,6 +40,8 @@ export async function getSession(): Promise<{
     console.error('Failed to parse rp_session cookie', e);
     return { session: null };
   }
+
+  if (!sess) return { session: null };
 
   try {
     const idv = await verifyIdToken(sess.id_token);
@@ -63,7 +66,8 @@ export async function getSession(): Promise<{
             created_at: Date.now(),
           };
           const isSecure = process.env.NODE_ENV === 'production';
-          cookies().set('rp_session', JSON.stringify(updated), {
+          const cookieStore2 = await cookies();
+          cookieStore2.set('rp_session', JSON.stringify(updated), {
             httpOnly: true,
             secure: isSecure,
             sameSite: 'lax',
@@ -83,5 +87,8 @@ export async function getSession(): Promise<{
 }
 
 export function isAuthenticated(): boolean {
-  return !!cookies().get('rp_session');
+  return (async () => {
+    const cookieStore = await cookies();
+    return !!cookieStore.get('rp_session');
+  })() as unknown as boolean;
 }

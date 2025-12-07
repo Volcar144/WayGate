@@ -45,7 +45,7 @@ export async function GET(req: NextRequest) {
     providerType: 'oidc_generic',
   });
 
-  const issuer = getIssuerURL();
+  const issuer = await getIssuerURL();
   const redirectUri = `${issuer}/sso/oidc_generic/callback`;
 
   const scope = (provider.scopes && provider.scopes.length > 0 ? provider.scopes : ['openid', 'email', 'profile']).join(' ');

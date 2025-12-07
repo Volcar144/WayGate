@@ -8,7 +8,7 @@ async function getSigningKey(tenantId: string): Promise<{ alg: 'RS256'; kid: str
   const active = await getActiveKeyForTenant(tenantId);
   if (!active) throw new Error('no_active_signing_key');
   const alg: 'RS256' = 'RS256';
-  const key = await importJWK(active.privateJwk as JWK, alg);
+  const key = (await importJWK(active.privateJwk as JWK, alg)) as CryptoKey;
   return { alg, kid: active.kid, key };
 }
 
@@ -22,7 +22,7 @@ export async function signAccessToken(params: {
   const { tenantId, sub, clientId, scope } = params;
   const expiresInSec = params.expiresInSec ?? 60 * 15; // 15 minutes
   const { alg, kid, key } = await getSigningKey(tenantId);
-  const issuer = getIssuerURL();
+  const issuer = await getIssuerURL();
   const now = Math.floor(Date.now() / 1000);
   const exp = now + expiresInSec;
 
@@ -52,7 +52,7 @@ export async function signIdToken(params: {
   const { tenantId, sub, clientId, nonce, authTime } = params;
   const expiresInSec = params.expiresInSec ?? 60 * 5; // 5 minutes
   const { alg, kid, key } = await getSigningKey(tenantId);
-  const issuer = getIssuerURL();
+  const issuer = await getIssuerURL();
   const now = Math.floor(Date.now() / 1000);
   const exp = now + expiresInSec;
 

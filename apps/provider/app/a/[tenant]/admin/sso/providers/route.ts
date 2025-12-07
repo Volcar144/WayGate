@@ -20,8 +20,8 @@ const upsertSchema = z.object({
   status: z.enum(['enabled', 'disabled']).optional(),
 });
 
-function buildCallbackUrl(type: string): string {
-  const issuer = getIssuerURL();
+async function buildCallbackUrl(type: string): Promise<string> {
+  const issuer = await getIssuerURL();
   return `${issuer}/sso/${type}/callback`;
 }
 
@@ -34,7 +34,7 @@ export async function GET(req: NextRequest) {
   if (!tenant) return NextResponse.json({ error: 'unknown tenant' }, { status: 404 });
 
   const rows = await (prisma as any).identityProvider.findMany({ where: { tenantId: tenant.id } });
-  const result = rows.map((r: any) => {
+  const result = await Promise.all(rows.map(async (r: any) => {
     let hasSecret = false;
     try {
       const val = r.clientSecretEnc ? decryptSecret(r.clientSecretEnc) : '';
@@ -50,14 +50,14 @@ export async function GET(req: NextRequest) {
       scopes: r.scopes || [],
       status: r.status,
       hasSecret,
-      callbackUrl: buildCallbackUrl(r.type),
+      callbackUrl: await buildCallbackUrl(r.type),
     };
-  });
+  }));
 
   // Also include default entries for missing providers to simplify UI
   const types = ['google', 'microsoft', 'github', 'oidc_generic'];
   const byType = new Map(result.map((r: any) => [r.type, r]));
-  const enriched = types.map((t) => byType.get(t) || { id: null, type: t, clientId: '', issuer: '', scopes: [], status: 'disabled', hasSecret: false, callbackUrl: buildCallbackUrl(t) });
+  const enriched = await Promise.all(types.map(async (t) => byType.get(t) || { id: null, type: t, clientId: '', issuer: '', scopes: [], status: 'disabled', hasSecret: false, callbackUrl: await buildCallbackUrl(t) }));
 
   return NextResponse.json({ ok: true, providers: enriched });
 }

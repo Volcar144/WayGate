@@ -31,8 +31,8 @@ export class AuditService {
       return;
     }
 
-    // Get request context
-    const requestHeaders = headers();
+    // Get request context (headers() may be async/typed differently across environments)
+    const requestHeaders = headers() as unknown as { get: (name: string) => string | null };
     const ip = context.ip || requestHeaders.get('x-forwarded-for') || requestHeaders.get('x-real-ip') || null;
     const userAgent = context.userAgent || requestHeaders.get('user-agent') || null;
     const requestId = requestHeaders.get('x-request-id') || undefined;
@@ -73,8 +73,8 @@ export class AuditService {
     await tenantAuditRepo.create(tenant.id, {
       userId: context.userId,
       action: context.action,
-      ip,
-      userAgent,
+      ip: ip ?? undefined,
+      userAgent: userAgent ?? undefined,
     });
 
     logger.debug('Audit entry created', {

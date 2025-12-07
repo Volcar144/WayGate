@@ -42,7 +42,7 @@ export async function GET(req: NextRequest) {
     providerType: 'github',
   });
 
-  const issuer = getIssuerURL();
+  const issuer = await getIssuerURL();
   const redirectUri = `${issuer}/sso/github/callback`;
 
   const defaultScopes = ['read:user', 'user:email'];

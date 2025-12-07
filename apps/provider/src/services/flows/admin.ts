@@ -13,7 +13,14 @@ import type {
   FlowStatus,
 } from '@/types/flows';
 import { z } from 'zod';
-import type { Prisma } from '@prisma/client';
+import type {
+  Prisma,
+  FlowNodeType as PrismaFlowNodeType,
+  FlowNode as PrismaFlowNode,
+  UiPrompt as PrismaUiPrompt,
+  FlowRun as PrismaFlowRun,
+  FlowEvent as PrismaFlowEvent,
+} from '@prisma/client';
 
 const PromptSchemaValidator = z.object({
   fields: z
@@ -176,7 +183,7 @@ export async function createFlowNode(
     data: {
       tenantId,
       flowId,
-      type: input.type,
+      type: input.type as unknown as PrismaFlowNodeType,
       config: input.config ?? {},
       order: (maxOrder._max.order ?? 0) + 1,
       uiPromptId: input.uiPromptId ?? null,
@@ -299,7 +306,7 @@ function mapFlow(flow: FlowIncludeNodes): FlowDto {
   };
 }
 
-function mapNode(node: Prisma.FlowNode & { uiPrompt: Prisma.UiPrompt | null }): FlowNodeDto {
+function mapNode(node: PrismaFlowNode & { uiPrompt: PrismaUiPrompt | null }): FlowNodeDto {
   return {
     id: node.id,
     type: node.type as FlowNodeType,
@@ -314,22 +321,22 @@ function mapNode(node: Prisma.FlowNode & { uiPrompt: Prisma.UiPrompt | null }): 
   };
 }
 
-function mapPrompt(prompt: Prisma.UiPrompt): UiPromptDto {
+function mapPrompt(prompt: PrismaUiPrompt): UiPromptDto {
   return {
     id: prompt.id,
     title: prompt.title,
     description: prompt.description,
-    schema: (prompt.schema as PromptSchema) ?? { fields: [] },
+    schema: (prompt.schema as unknown as PromptSchema) ?? { fields: [] },
     timeoutSec: prompt.timeoutSec,
     createdAt: prompt.createdAt.toISOString(),
     updatedAt: prompt.updatedAt.toISOString(),
   };
 }
 
-function mapRun(run: Prisma.FlowRun & {
+function mapRun(run: PrismaFlowRun & {
   flow: { id: string; name: string; trigger: FlowTrigger };
   user: { id: string; email: string; name: string | null } | null;
-  events: (Prisma.FlowEvent & { node: { id: string; type: string | null } | null })[];
+  events: (PrismaFlowEvent & { node: { id: string; type: string | null } | null })[];
 }): FlowRunDto {
   return {
     id: run.id,

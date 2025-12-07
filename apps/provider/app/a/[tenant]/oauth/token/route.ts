@@ -63,7 +63,7 @@ export async function POST(req: NextRequest) {
   const clientId = auth.clientId || clientIdParam;
   const clientSecret = auth.clientSecret || clientSecretParam;
 
-  const ip = (req.ip as string | null) || req.headers.get('x-forwarded-for') || 'unknown';
+  const ip = req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || undefined;
   const rlCfg = getTokenRateLimitConfig(tenantSlug, clientId);
   const rlKeys = buildTokenRateLimitKeys({ tenant: tenantSlug, clientId, ip });
   const ipLimit = await rateLimitTake(rlKeys.byIp, rlCfg.ipLimit, rlCfg.windowMs);
@@ -163,8 +163,8 @@ export async function POST(req: NextRequest) {
     await tenantAuditRepo.create(tenant.id, {
       userId: codeRow.userId,
       action: 'token.exchange',
-      ip: ip || null,
-      userAgent: req.headers.get('user-agent') || null,
+      ip: ip,
+      userAgent: req.headers.get('user-agent') ?? undefined,
     });
 
     return NextResponse.json({
@@ -200,7 +200,7 @@ export async function POST(req: NextRequest) {
       await (prisma as any).session.update({ where: { id: rt.sessionId }, data: { expiresAt: new Date() } }).catch((e: any) => {
         console.error('Failed to expire session after reuse detection', e);
       });
-      await (prisma as any).audit.create({ data: { tenantId: tenant.id, userId: null, action: 'token.reuse_detected', ip: ip || null, userAgent: req.headers.get('user-agent') || null } });
+      await (prisma as any).audit.create({ data: { tenantId: tenant.id, userId: null, action: 'token.reuse_detected', ip: ip ?? undefined, userAgent: req.headers.get('user-agent') ?? undefined } });
       return oidcError('invalid_grant', 'refresh token reuse detected');
     }
 
@@ -244,8 +244,8 @@ export async function POST(req: NextRequest) {
     await tenantAuditRepo.create(tenant.id, {
       userId,
       action: 'token.refresh',
-      ip: ip || null,
-      userAgent: req.headers.get('user-agent') || null,
+      ip: ip,
+      userAgent: req.headers.get('user-agent') ?? undefined,
     });
 
     return NextResponse.json({

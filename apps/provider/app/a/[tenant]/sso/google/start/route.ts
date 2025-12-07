@@ -39,7 +39,7 @@ export async function GET(req: NextRequest) {
     providerType: 'google',
   });
 
-  const issuer = getIssuerURL();
+  const issuer = await getIssuerURL();
   const redirectUri = `${issuer}/sso/google/callback`;
 
   const scope = (provider.scopes && provider.scopes.length > 0 ? provider.scopes : ['openid', 'email', 'profile']).join(' ');
