@@ -53,10 +53,17 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    return NextResponse.json({
+    // In development, always include debug link for consistent DX
+    const response: { ok: boolean; message: string; debug_link?: string } = {
       ok: true,
       message: 'Magic link sent to your email'
-    });
+    };
+
+    if (process.env.NODE_ENV === 'development') {
+      response.debug_link = magicUrl;
+    }
+
+    return NextResponse.json(response);
   } catch (error) {
     console.error('Magic link error:', error);
     return NextResponse.json({ error: 'Failed to send magic link' }, { status: 500 });

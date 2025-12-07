@@ -1,6 +1,6 @@
 import { cookies } from 'next/headers';
 import { NextRequest, NextResponse } from 'next/server';
-import { randomBytes } from 'node:crypto';
+import { randomBytes, timingSafeEqual } from 'node:crypto';
 import { prisma } from '@/lib/prisma';
 import { RbacService } from '@/lib/rbac';
 import { getTenant } from '@/lib/tenant';
@@ -261,7 +261,27 @@ export async function assertCsrfToken(req: NextRequest): Promise<void> {
   const cookieStore = await cookies();
   const cookieToken = cookieStore.get(CSRF_COOKIE)?.value;
 
-  if (!headerToken || !cookieToken || headerToken !== cookieToken) {
+  if (!headerToken || !cookieToken) {
+    throw new CsrfError();
+  }
+
+  // Use constant-time comparison to prevent timing attacks
+  try {
+    const headerBuffer = Buffer.from(headerToken, 'utf-8');
+    const cookieBuffer = Buffer.from(cookieToken, 'utf-8');
+    
+    if (headerBuffer.length !== cookieBuffer.length) {
+      throw new CsrfError();
+    }
+    
+    if (!timingSafeEqual(headerBuffer, cookieBuffer)) {
+      throw new CsrfError();
+    }
+  } catch (error) {
+    if (error instanceof CsrfError) {
+      throw error;
+    }
+    // If buffer operations fail, reject the token
     throw new CsrfError();
   }
 }

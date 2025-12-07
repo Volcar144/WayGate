@@ -5,6 +5,7 @@ import { prisma } from '@/lib/prisma';
 import { findTenantBySlug } from '@/services/jwks';
 import { consumeMagicToken } from '@/services/authz';
 import { RbacService } from '@/lib/rbac';
+import type { Prisma } from '@prisma/client';
 
 export async function GET(req: NextRequest) {
   const tenantSlug = getTenant();
@@ -29,30 +30,37 @@ export async function GET(req: NextRequest) {
       return new NextResponse('Unknown tenant', { status: 400 });
     }
 
-    // Find or create user
-    let user = await prisma.user.findUnique({
-      where: { tenantId_email: { tenantId: tenant.id, email: mt.email } }
-    });
-
-    if (!user) {
-      // Create user
-      user = await prisma.user.create({
-        data: {
-          tenantId: tenant.id,
-          email: mt.email,
-          name: null
-        }
+    // Find or create user with role assignment in a transaction
+    // This prevents race conditions for the first-user admin assignment
+    const { user, isFirstUser } = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      // Try to find existing user
+      let existingUser = await tx.user.findUnique({
+        where: { tenantId_email: { tenantId: tenant.id, email: mt.email } }
       });
 
-      // Check if this is the first user in the tenant - if so, make them admin
-      const userCount = await prisma.user.count({ where: { tenantId: tenant.id } });
-      if (userCount === 1) {
-        await RbacService.assignRole(tenant.id, user.id, 'tenant_admin', user.id);
-      } else {
-        // Otherwise assign viewer role
-        await RbacService.assignRole(tenant.id, user.id, 'tenant_viewer', user.id);
+      let isFirst = false;
+
+      if (!existingUser) {
+        // Count users before creating to determine if this is the first user
+        const userCount = await tx.user.count({ where: { tenantId: tenant.id } });
+        isFirst = userCount === 0;
+
+        // Create user
+        existingUser = await tx.user.create({
+          data: {
+            tenantId: tenant.id,
+            email: mt.email,
+            name: null
+          }
+        });
+
+        // Assign role based on whether this is the first user
+        const roleName = isFirst ? 'tenant_admin' : 'tenant_viewer';
+        await RbacService.assignRole(tenant.id, existingUser.id, roleName, existingUser.id);
       }
-    }
+
+      return { user: existingUser, isFirstUser: isFirst };
+    });
 
     // Check if user has tenant_admin role
     const roles = await RbacService.getUserRoles(tenant.id, user.id);
@@ -66,16 +74,21 @@ export async function GET(req: NextRequest) {
     // Create admin session
     await createAdminSession(user.id, tenant.id);
 
-    // Create audit log
-    await prisma.audit.create({
-      data: {
-        tenantId: tenant.id,
-        userId: user.id,
-        action: 'admin.login',
-        ip: req.headers.get('x-forwarded-for') || null,
-        userAgent: req.headers.get('user-agent') || null
-      }
-    });
+    // Create audit log - don't block login on audit failure
+    try {
+      await prisma.audit.create({
+        data: {
+          tenantId: tenant.id,
+          userId: user.id,
+          action: 'admin.login',
+          ip: req.headers.get('x-forwarded-for') || null,
+          userAgent: req.headers.get('user-agent') || null
+        }
+      });
+    } catch (auditError) {
+      console.error('Failed to create audit log for admin login:', auditError);
+      // Continue with login even if audit fails
+    }
 
     // Redirect to admin dashboard
     const redirectUrl = new URL(`/a/${tenantSlug}/admin`, req.url);

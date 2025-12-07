@@ -92,7 +92,7 @@ export default function AdminLoginClient({ tenantSlug }: AdminLoginClientProps) 
         )}
 
         <div className="mt-6 text-center text-sm text-gray-500">
-          Need help? Contact support@{tenantSlug}.com
+          Need help? Contact your administrator
         </div>
       </div>
     </div>

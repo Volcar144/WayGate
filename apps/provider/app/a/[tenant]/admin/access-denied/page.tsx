@@ -26,7 +26,7 @@ export default function AccessDenied() {
               </Link>
             )}
             <Link
-              href="/"
+              href={tenantSlug ? `/a/${tenantSlug}` : '/'}
               className="block w-full py-2 px-4 bg-gray-200 hover:bg-gray-300 text-gray-900 font-semibold rounded-lg transition"
             >
               Go to homepage

@@ -1,8 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getTenant } from '@/lib/tenant';
-import { requireTenant } from '@/lib/tenant-repo';
 import { requireTenantAdmin } from '@/lib/auth';
-import { RbacService, PERMISSIONS } from '@/lib/rbac';
 import { prisma } from '@/lib/prisma';
 
 export const runtime = 'nodejs';
@@ -11,11 +8,10 @@ export async function GET(req: NextRequest) {
   try {
     // Require tenant admin authentication
     const context = await requireTenantAdmin();
-    const tenant = await requireTenant();
 
     // Fetch users with their sessions and roles
     const users = await prisma.user.findMany({
-      where: { tenantId: tenant.id },
+      where: { tenantId: context.tenant.id },
       include: {
         sessions: {
           where: { expiresAt: { gt: new Date() } },

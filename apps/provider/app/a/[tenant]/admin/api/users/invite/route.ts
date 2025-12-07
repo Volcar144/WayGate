@@ -1,16 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireTenant } from '@/lib/tenant-repo';
 import { requireTenantAdmin } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { AuditService } from '@/services/audit';
-import { RbacService, PERMISSIONS } from '@/lib/rbac';
 
 export const runtime = 'nodejs';
 
 export async function POST(req: NextRequest) {
   try {
     const context = await requireTenantAdmin();
-    const tenant = await requireTenant();
     const body = await req.json();
     const { email, name } = body;
 
@@ -20,7 +17,7 @@ export async function POST(req: NextRequest) {
 
     // Check if user already exists
     const existingUser = await prisma.user.findUnique({
-      where: { tenantId_email: { tenantId: tenant.id, email: email.toLowerCase() } },
+      where: { tenantId_email: { tenantId: context.tenant.id, email: email.toLowerCase() } },
     });
 
     if (existingUser) {
@@ -30,7 +27,7 @@ export async function POST(req: NextRequest) {
     // Create user
     const user = await prisma.user.create({
       data: {
-        tenantId: tenant.id,
+        tenantId: context.tenant.id,
         email: email.toLowerCase(),
         name,
       },
@@ -38,13 +35,13 @@ export async function POST(req: NextRequest) {
 
     // Assign tenant_viewer role by default
     const viewerRole = await prisma.tenantRole.findFirst({
-      where: { tenantId: tenant.id, name: 'tenant_viewer' },
+      where: { tenantId: context.tenant.id, name: 'tenant_viewer' },
     });
 
     if (viewerRole) {
       await prisma.userRole.create({
         data: {
-          tenantId: tenant.id,
+          tenantId: context.tenant.id,
           userId: user.id,
           roleId: viewerRole.id,
         },
@@ -53,14 +50,14 @@ export async function POST(req: NextRequest) {
 
     // Create audit event
     await AuditService.create({
-      userId: user.id,
+      userId: context.user.id,
       action: 'user.invited',
       resource: 'user',
       resourceId: user.id,
-      details: { email },
+      details: { email, invitedUserId: user.id },
       ip: req.headers.get('x-forwarded-for') || undefined,
       userAgent: req.headers.get('user-agent') || undefined,
-    }, tenant.slug);
+    }, context.tenant.slug);
 
     return NextResponse.json({ user: { id: user.id, email: user.email } });
   } catch (error) {
