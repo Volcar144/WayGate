@@ -1,18 +1,24 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams, usePathname } from 'next/navigation';
+import type { TenantContext } from '@/lib/auth';
+
+interface AdminLayoutClientProps {
+  children: React.ReactNode;
+  context: TenantContext;
+}
 
 export default function AdminLayoutClient({
   children,
-}: {
-  children: React.ReactNode;
-}) {
+  context,
+}: AdminLayoutClientProps) {
   const params = useParams<{ tenant: string }>();
   const pathname = usePathname();
-  const tenant = params.tenant || '';
+  const tenant = params.tenant || context?.tenant.slug || '';
   const [sidebarOpen, setSidebarOpen] = useState(true);
+
 
   const navItems = [
     { label: 'Overview', href: `/a/${tenant}/admin`, icon: '📊' },
@@ -98,8 +104,12 @@ export default function AdminLayoutClient({
         <header className="bg-white border-b border-gray-200 px-8 py-4 flex items-center justify-between">
           <h1 className="text-2xl font-bold text-gray-900">Tenant Dashboard</h1>
           <div className="flex items-center gap-4">
-            <button className="text-gray-500 hover:text-gray-700">Help</button>
-            <button className="text-gray-500 hover:text-gray-700">Account</button>
+            <span className="text-sm text-gray-600">{context.user.email}</span>
+            <form action={`/a/${tenant}/admin/logout`} method="POST">
+              <button type="submit" className="text-sm text-gray-500 hover:text-gray-700">
+                Logout
+              </button>
+            </form>
           </div>
         </header>
 

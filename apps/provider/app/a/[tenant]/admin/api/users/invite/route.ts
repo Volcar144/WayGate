@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireTenant } from '@/lib/tenant-repo';
+import { requireTenantAdmin } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { AuditService } from '@/services/audit';
 import { RbacService, PERMISSIONS } from '@/lib/rbac';
@@ -8,6 +9,7 @@ export const runtime = 'nodejs';
 
 export async function POST(req: NextRequest) {
   try {
+    const context = await requireTenantAdmin();
     const tenant = await requireTenant();
     const body = await req.json();
     const { email, name } = body;
