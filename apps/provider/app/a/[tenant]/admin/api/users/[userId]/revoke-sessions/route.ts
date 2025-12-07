@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireTenant } from '@/lib/tenant-repo';
+import { requireTenantAdmin } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { AuditService } from '@/services/audit';
 
@@ -10,6 +11,7 @@ export async function POST(
   { params }: { params: Promise<{ userId: string }> }
 ) {
   try {
+    const context = await requireTenantAdmin();
     const tenant = await requireTenant();
     const { userId } = await params;
 
@@ -29,7 +31,7 @@ export async function POST(
     });
 
     if (sessions.length > 0) {
-      const sessionIds = sessions.map((s) => s.id);
+      const sessionIds = sessions.map((s: { id: string }) => s.id);
 
       // Revoke refresh tokens and expire sessions
       await prisma.$transaction([
@@ -46,11 +48,11 @@ export async function POST(
 
     // Create audit event
     await AuditService.create({
-      userId: user.id,
+      userId: context.user.id,
       action: 'admin.revoke_user_sessions',
       resource: 'session',
       resourceId: userId,
-      details: { revokedSessions: sessions.length },
+      details: { revokedSessions: sessions.length, targetUser: user.id },
       ip: req.headers.get('x-forwarded-for') || undefined,
       userAgent: req.headers.get('user-agent') || undefined,
     }, tenant.slug);

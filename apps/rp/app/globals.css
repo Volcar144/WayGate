@@ -1,2 +1,35 @@
-html, body { height: 100%; }
-body { font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji"; }
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: #f9fafb;
+  --foreground: #111827;
+  --primary: #4f46e5;
+  --primary-foreground: #ffffff;
+  --border: #e5e7eb;
+  --card: #ffffff;
+  --card-foreground: #111827;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #111827;
+    --foreground: #f9fafb;
+    --primary: #6366f1;
+    --primary-foreground: #ffffff;
+    --border: #374151;
+    --card: #1f2937;
+    --card-foreground: #f9fafb;
+  }
+}
+
+html, body { 
+  height: 100%; 
+  background-color: var(--background);
+}
+
+body { 
+  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+  color: var(--foreground);
+}

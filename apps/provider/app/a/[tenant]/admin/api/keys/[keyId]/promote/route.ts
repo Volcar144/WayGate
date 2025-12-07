@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireTenant } from '@/lib/tenant-repo';
+import { requireTenantAdmin } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { AuditService } from '@/services/audit';
+import type { Prisma } from '@prisma/client';
 
 export const runtime = 'nodejs';
 
@@ -10,6 +12,7 @@ export async function POST(
   { params }: { params: Promise<{ keyId: string }> }
 ) {
   try {
+    const context = await requireTenantAdmin();
     const tenant = await requireTenant();
     const { keyId } = await params;
 
@@ -34,7 +37,7 @@ export async function POST(
     });
 
     // Retire current active key and promote new key in a transaction to ensure atomicity
-    const promoted = await prisma.$transaction(async (tx) => {
+    const promoted = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       // Retire current active key if it exists
       if (currentActive) {
         await tx.jwkKey.update({
@@ -52,6 +55,7 @@ export async function POST(
 
     // Create audit event
     await AuditService.create({
+      userId: context.user.id,
       action: 'key.promoted',
       resource: 'key',
       resourceId: keyId,
