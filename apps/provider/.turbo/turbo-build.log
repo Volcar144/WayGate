@@ -1,13 +1,12 @@
 
-
-> provider@0.1.0 build /workspaces/WayGate/apps/provider
+> provider@0.1.0 build /home/engine/project/apps/provider
 > NEXT_LINT=false next build
 
-   [1m[38;2;173;127;168m▲ Next.js 15.5.7[39m[22m
-   - Environments: .env
+   ▲ Next.js 15.5.7
+   - Environments: .env.local
 
- [37m[1m [22m[39m Creating an optimized production build ...
- ⚠ Compiled with warnings in 44s
+   Creating an optimized production build ...
+ ⚠ Compiled with warnings in 14.9s
 
 ../../node_modules/.pnpm/@opentelemetry+instrumentation@0.57.1_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/instrumentation/build/esm/platform/node/instrumentation.js
 Critical dependency: the request of a dependency is an expression
@@ -22,7 +21,8 @@ Import trace for requested module:
 ../../node_modules/.pnpm/@sentry+node@8.55.0/node_modules/@sentry/node/build/cjs/integrations/http/index.js
 ../../node_modules/.pnpm/@sentry+node@8.55.0/node_modules/@sentry/node/build/cjs/index.js
 ../../node_modules/.pnpm/@sentry+nextjs@8.55.0_@opentelemetry+context-async-hooks@1.30.1_@opentelemetry+api@1.9.0__@op_srax7fey3wtqbr3nkhogeve2hi/node_modules/@sentry/nextjs/build/cjs/index.server.js
-./app/a/[tenant]/logout/route.ts
+./src/lib/prisma.ts
+./app/a/[tenant]/admin/api/apps/route.ts
 
 ../../node_modules/.pnpm/require-in-the-middle@7.5.2/node_modules/require-in-the-middle/index.js
 Critical dependency: require function is used in a way in which dependencies cannot be statically extracted
@@ -33,8 +33,104 @@ Import trace for requested module:
 ../../node_modules/.pnpm/@opentelemetry+instrumentation@0.57.2_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/instrumentation/build/esm/platform/node/index.js
 ../../node_modules/.pnpm/@opentelemetry+instrumentation@0.57.2_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/instrumentation/build/esm/platform/index.js
 ../../node_modules/.pnpm/@opentelemetry+instrumentation@0.57.2_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/instrumentation/build/esm/index.js
-../../node_modules/.pnpm/@sentry+opentelemetry@8.55.0_@opentelemetry+api@1.9.0_@opentelemetry+context-async-hooks@1.30_xlp5yymgznyjvhdlak2qvgb6lm/node_modules/@sentry/opentelemetry/build/cjs/index.js
-../../node_modules/.pnpm/@sentry+nextjs@8.55.0_@opentelemetry+context-async-hooks@1.30.1_@opentelemetry+api@1.9.0__@op_srax7fey3wtqbr3nkhogeve2hi/node_modules/@sentry/nextjs/build/cjs/server/index.js
+../../node_modules/.pnpm/@sentry+node@8.55.0/node_modules/@sentry/node/build/cjs/integrations/node-fetch.js
+../../node_modules/.pnpm/@sentry+node@8.55.0/node_modules/@sentry/node/build/cjs/index.js
 ../../node_modules/.pnpm/@sentry+nextjs@8.55.0_@opentelemetry+context-async-hooks@1.30.1_@opentelemetry+api@1.9.0__@op_srax7fey3wtqbr3nkhogeve2hi/node_modules/@sentry/nextjs/build/cjs/index.server.js
-./app/a/[tenant]/logout/route.ts
+./src/lib/prisma.ts
+./app/a/[tenant]/admin/api/apps/route.ts
+
+ ✓ Compiled successfully in 22.6s
+   Skipping linting
+   Checking validity of types ...
+   Collecting page data ...
+ ⚠ Using edge runtime on a page currently disables static generation for that page
+   Generating static pages (0/10) ...
+   Generating static pages (2/10) 
+   Generating static pages (4/10) 
+   Generating static pages (7/10) 
+ ✓ Generating static pages (10/10)
+   Finalizing page optimization ...
+   Collecting build traces ...
+
+Route (app)                                                  Size  First Load JS
+┌ ○ /                                                       174 B         106 kB
+├ ○ /_not-found                                             995 B         103 kB
+├ ƒ /a/[tenant]                                             261 B         102 kB
+├ ƒ /a/[tenant]/.well-known/jwks.json                       261 B         102 kB
+├ ƒ /a/[tenant]/.well-known/openid-configuration            261 B         102 kB
+├ ƒ /a/[tenant]/admin                                       174 B         106 kB
+├ ƒ /a/[tenant]/admin-login                               1.19 kB         103 kB
+├ ƒ /a/[tenant]/admin-login/api/magic                       261 B         102 kB
+├ ƒ /a/[tenant]/admin-login/callback                        261 B         102 kB
+├ ƒ /a/[tenant]/admin/access-denied                         174 B         106 kB
+├ ƒ /a/[tenant]/admin/api/apps                              261 B         102 kB
+├ ƒ /a/[tenant]/admin/api/apps/[clientId]/rotate-secret     261 B         102 kB
+├ ƒ /a/[tenant]/admin/api/branding                          261 B         102 kB
+├ ƒ /a/[tenant]/admin/api/flows                             261 B         102 kB
+├ ƒ /a/[tenant]/admin/api/flows/[flowId]                    261 B         102 kB
+├ ƒ /a/[tenant]/admin/api/flows/[flowId]/nodes              261 B         102 kB
+├ ƒ /a/[tenant]/admin/api/flows/[flowId]/nodes/[nodeId]     261 B         102 kB
+├ ƒ /a/[tenant]/admin/api/flows/prompts                     261 B         102 kB
+├ ƒ /a/[tenant]/admin/api/flows/prompts/[promptId]          261 B         102 kB
+├ ƒ /a/[tenant]/admin/api/keys                              261 B         102 kB
+├ ƒ /a/[tenant]/admin/api/keys/[keyId]/promote              261 B         102 kB
+├ ƒ /a/[tenant]/admin/api/keys/rotate                       261 B         102 kB
+├ ƒ /a/[tenant]/admin/api/logs                              261 B         102 kB
+├ ƒ /a/[tenant]/admin/api/settings                          261 B         102 kB
+├ ƒ /a/[tenant]/admin/api/users                             261 B         102 kB
+├ ƒ /a/[tenant]/admin/api/users/[userId]/revoke-sessions    261 B         102 kB
+├ ƒ /a/[tenant]/admin/api/users/invite                      261 B         102 kB
+├ ƒ /a/[tenant]/admin/apps                                2.19 kB         108 kB
+├ ƒ /a/[tenant]/admin/audit/export                          261 B         102 kB
+├ ƒ /a/[tenant]/admin/branding                            1.83 kB         107 kB
+├ ƒ /a/[tenant]/admin/flows                               5.18 kB         111 kB
+├ ƒ /a/[tenant]/admin/keys                                 1.6 kB         107 kB
+├ ƒ /a/[tenant]/admin/keys/revoke                           261 B         102 kB
+├ ƒ /a/[tenant]/admin/logout                                261 B         102 kB
+├ ƒ /a/[tenant]/admin/logs                                1.67 kB         107 kB
+├ ƒ /a/[tenant]/admin/revoke/sessions                       261 B         102 kB
+├ ƒ /a/[tenant]/admin/scim                                  261 B         102 kB
+├ ƒ /a/[tenant]/admin/settings                            1.69 kB         107 kB
+├ ƒ /a/[tenant]/admin/sso                                   261 B         102 kB
+├ ƒ /a/[tenant]/admin/sso-config                          2.06 kB         107 kB
+├ ƒ /a/[tenant]/admin/sso/providers                         261 B         102 kB
+├ ƒ /a/[tenant]/admin/sso/providers/test                    261 B         102 kB
+├ ƒ /a/[tenant]/admin/users                               1.92 kB         107 kB
+├ ƒ /a/[tenant]/api/keys/rotate                             261 B         102 kB
+├ ƒ /a/[tenant]/api/ping                                    261 B         102 kB
+├ ƒ /a/[tenant]/logout                                      261 B         102 kB
+├ ƒ /a/[tenant]/oauth/authorize                             261 B         102 kB
+├ ƒ /a/[tenant]/oauth/authorize/consent                     261 B         102 kB
+├ ƒ /a/[tenant]/oauth/authorize/sse                         261 B         102 kB
+├ ƒ /a/[tenant]/oauth/external/start                        261 B         102 kB
+├ ƒ /a/[tenant]/oauth/magic/consume                         261 B         102 kB
+├ ƒ /a/[tenant]/oauth/magic/request                         261 B         102 kB
+├ ƒ /a/[tenant]/oauth/token                                 261 B         102 kB
+├ ƒ /a/[tenant]/oauth/userinfo                              261 B         102 kB
+├ ƒ /a/[tenant]/register                                    261 B         102 kB
+├ ƒ /a/[tenant]/sso/github/callback                         261 B         102 kB
+├ ƒ /a/[tenant]/sso/github/start                            261 B         102 kB
+├ ƒ /a/[tenant]/sso/google/callback                         261 B         102 kB
+├ ƒ /a/[tenant]/sso/google/start                            261 B         102 kB
+├ ƒ /a/[tenant]/sso/microsoft/callback                      261 B         102 kB
+├ ƒ /a/[tenant]/sso/microsoft/start                         261 B         102 kB
+├ ƒ /a/[tenant]/sso/oidc_generic/callback                   261 B         102 kB
+├ ƒ /a/[tenant]/sso/oidc_generic/start                      261 B         102 kB
+├ ƒ /api/auth/login                                         261 B         102 kB
+├ ƒ /api/auth/signup                                        261 B         102 kB
+├ ○ /auth/login                                           1.61 kB         107 kB
+├ ○ /auth/signup                                          1.77 kB         107 kB
+├ ○ /docs                                                   174 B         106 kB
+├ ƒ /healthz                                                261 B         102 kB
+└ ƒ /readyz                                                 261 B         102 kB
++ First Load JS shared by all                              102 kB
+  ├ chunks/263-6edf8431a2db1c9f.js                        45.9 kB
+  ├ chunks/63506e3e-08db3e3d9376bfb9.js                   54.2 kB
+  └ other shared chunks (total)                           1.93 kB
+
+
+ƒ Middleware                                               117 kB
+
+○  (Static)   prerendered as static content
+ƒ  (Dynamic)  server-rendered on demand
 
