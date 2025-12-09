@@ -38,7 +38,7 @@ export async function getJWKS() {
   if (g.__rp_cache.jwks) return g.__rp_cache.jwks;
   const cfg = await discover();
   const url = new URL(cfg.jwks_uri);
-  const jwks = createRemoteJWKSet(url, { cache: true, cooldownDuration: 30_000 });
+  const jwks = createRemoteJWKSet(url, { cooldownDuration: 30_000 });
   g.__rp_cache.jwks = jwks;
   return jwks;
 }

@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireTenant } from '@/lib/tenant-repo';
 import { requireTenantAdmin } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { AuditService } from '@/services/audit';
@@ -12,12 +11,11 @@ export async function POST(
 ) {
   try {
     const context = await requireTenantAdmin();
-    const tenant = await requireTenant();
     const { userId } = await params;
 
     // Verify user belongs to tenant
     const user = await prisma.user.findFirst({
-      where: { id: userId, tenantId: tenant.id },
+      where: { id: userId, tenantId: context.tenant.id },
     });
 
     if (!user) {
@@ -26,12 +24,12 @@ export async function POST(
 
     // Get all active sessions for user
     const sessions = await prisma.session.findMany({
-      where: { userId, tenantId: tenant.id },
+      where: { userId, tenantId: context.tenant.id },
       select: { id: true },
     });
 
     if (sessions.length > 0) {
-      const sessionIds = sessions.map((s: { id: string }) => s.id);
+      const sessionIds = sessions.map(s => s.id);
 
       // Revoke refresh tokens and expire sessions
       await prisma.$transaction([
@@ -55,7 +53,7 @@ export async function POST(
       details: { revokedSessions: sessions.length, targetUser: user.id },
       ip: req.headers.get('x-forwarded-for') || undefined,
       userAgent: req.headers.get('user-agent') || undefined,
-    }, tenant.slug);
+    }, context.tenant.slug);
 
     return NextResponse.json({ ok: true });
   } catch (error) {

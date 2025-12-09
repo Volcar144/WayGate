@@ -8,6 +8,14 @@ import { getIssuerURL } from '@/utils/issuer';
 export async function POST(req: NextRequest) {
   const tenantSlug = getTenant();
   if (!tenantSlug) {
+    // In production, provide a friendly error with CTA
+    if (process.env.NODE_ENV === 'production') {
+      return NextResponse.json({
+        error: 'Invalid request',
+        message: 'Tenant context is required to access this endpoint',
+        action: 'Please access this endpoint through the proper tenant URL (/a/{tenant}/admin-login/api/magic)',
+      }, { status: 400 });
+    }
     return NextResponse.json({ error: 'Missing tenant' }, { status: 400 });
   }
 
@@ -53,10 +61,17 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    return NextResponse.json({
+    // In development, always include debug link for consistent DX
+    const response: { ok: boolean; message: string; debug_link?: string } = {
       ok: true,
       message: 'Magic link sent to your email'
-    });
+    };
+
+    if (process.env.NODE_ENV === 'development') {
+      response.debug_link = magicUrl;
+    }
+
+    return NextResponse.json(response);
   } catch (error) {
     console.error('Magic link error:', error);
     return NextResponse.json({ error: 'Failed to send magic link' }, { status: 500 });

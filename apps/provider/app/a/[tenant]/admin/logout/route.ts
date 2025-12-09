@@ -9,7 +9,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.redirect(new URL('/', req.url));
   }
 
-  await destroyAdminSession();
+  try {
+    await destroyAdminSession();
+  } catch (error) {
+    console.error('Failed to destroy admin session during logout:', error);
+    // Continue with logout redirect even if session cleanup fails
+  }
 
   return NextResponse.redirect(new URL(`/a/${tenantSlug}/admin-login`, req.url));
 }

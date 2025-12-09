@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma';
 import { requireTenant } from './tenant-repo';
+import type { Prisma } from '@prisma/client';
 
 // Permission constants
 export const PERMISSIONS = {
@@ -131,19 +132,50 @@ export class RbacService {
 
   /**
    * Assign a role to a user within a tenant
+   * @param tx Optional transaction client - if provided, all operations use this transaction
    */
-  static async assignRole(tenantId: string, userId: string, roleName: string, assignedBy?: string) {
-    // Verify the role exists for this tenant
-    const role = await prisma.tenantRole.findFirst({
+  static async assignRole(
+    tenantId: string, 
+    userId: string, 
+    roleName: string, 
+    assignedBy?: string,
+    tx?: Prisma.TransactionClient
+  ) {
+    const client = tx ?? prisma;
+
+    // Verify the role exists for this tenant, or lazy-create if it's a default role
+    let role = await client.tenantRole.findFirst({
       where: { tenantId, name: roleName }
     });
     
     if (!role) {
-      throw new Error(`Role '${roleName}' not found for tenant`);
+      // Check if this is a default role that should be lazy-created
+      const defaultRole = Object.values(DEFAULT_ROLES).find(r => r.name === roleName);
+      
+      if (defaultRole) {
+        // Lazy-create the missing default role (idempotent via upsert)
+        role = await client.tenantRole.upsert({
+          where: {
+            tenantId_name: {
+              tenantId,
+              name: roleName
+            }
+          },
+          update: {},
+          create: {
+            tenantId,
+            name: defaultRole.name,
+            description: defaultRole.description,
+            permissions: defaultRole.permissions
+          }
+        });
+      } else {
+        throw new Error(`Role '${roleName}' not found for tenant`);
+      }
     }
 
     // Create or update the user role assignment
-    return await prisma.userRole.upsert({
+    return await client.userRole.upsert({
       where: {
         tenantId_userId_roleId: {
           tenantId,

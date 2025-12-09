@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { hashPassword } from '@/utils/password';
+import { TenantInitializationService } from '@/services/tenant-init';
+import { RbacService } from '@/lib/rbac';
+import type { Prisma } from '@prisma/client';
 
 export async function POST(req: NextRequest) {
   try {
@@ -35,44 +38,41 @@ export async function POST(req: NextRequest) {
     // Hash password
     const hashedPassword = await hashPassword(password);
 
-    // Create tenant
-    const tenant = await prisma.tenant.create({
-      data: {
-        name: tenantName,
-        slug,
-      },
-    });
-
-    // Create admin user (tenant-scoped)
-    // Cast `data` as any here to avoid type mismatches if Prisma client
-    // hasn't been regenerated yet to include the new `passwordHash` field.
-    // Use unchecked create via `any` cast on prisma to avoid type mismatch
-    // issues if the TypeScript server has stale Prisma types.
-    const user = await (prisma as any).user.create({
-      data: {
-        tenantId: tenant.id,
-        email: adminEmail,
-        name: adminName || null,
-        passwordHash: hashedPassword,
-      },
-    });
-
-    // Assign tenant admin role
-    const adminRole = await prisma.tenantRole.findFirst({
-      where: { tenantId: tenant.id, name: 'tenant_admin' },
-    });
-
-    if (adminRole) {
-      await prisma.userRole.create({
+    // Create tenant and initialize in a transaction for atomicity
+    const { tenant, user } = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      // Create tenant
+      const newTenant = await tx.tenant.create({
         data: {
-          tenantId: tenant.id,
-          userId: user.id,
-          roleId: adminRole.id,
+          name: tenantName,
+          slug,
         },
       });
+
+      // Create admin user (tenant-scoped)
+      const newUser = await (tx as any).user.create({
+        data: {
+          tenantId: newTenant.id,
+          email: adminEmail,
+          name: adminName || null,
+          passwordHash: hashedPassword,
+        },
+      });
+
+      // Assign tenant admin role via RbacService (which will lazy-create the role if needed)
+      await RbacService.assignRole(newTenant.id, newUser.id, 'tenant_admin', newUser.id, tx);
+
+      return { tenant: newTenant, user: newUser };
+    });
+
+    // Initialize tenant resources (default settings, JWK keys, etc.)
+    // This runs outside the transaction to avoid timeout and to allow proper retry logic
+    try {
+      await TenantInitializationService.initializeTenant(tenant.id, tenant.slug, tenant.name);
+    } catch (initError) {
+      console.error('Tenant initialization failed (non-blocking):', initError);
+      // Non-blocking: tenant and user are created successfully; initialization can be retried
     }
 
-    // TODO: Set session cookie and return auth tokens
     return NextResponse.json(
       { tenantSlug: tenant.slug, userId: user.id },
       { status: 201 }
