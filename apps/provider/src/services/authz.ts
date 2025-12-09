@@ -323,46 +323,47 @@ export async function issueMagicToken(params: { tenantId: string; tenantSlug: st
  * @returns The consumed `MagicToken` if the token existed and was valid; `null` if the token does not exist, has already been used, or has expired
  */
 export async function consumeMagicToken(token: string): Promise<MagicToken | null> {
-  // First, try to find which tenant this token belongs to by checking all tenants
-  // This is a limitation of the current design - in future, we should include tenant info in the token itself
   const tenantSlug = getTenant();
   if (!tenantSlug) {
     throw new Error('Tenant context required to consume magic token');
   }
   
   const redis = getTenantRedis(tenantSlug);
-  if (redis) {
-    const key = keyMagic(token);
-    try {
-      const raw = await redis.getdel(key);
-      if (!raw) return null;
+  const key = keyMagic(token);
+  
+  // Try Redis first
+  try {
+    const raw = await redis.getdel(key);
+    if (raw) {
       const mt = JSON.parse(raw) as MagicToken;
       return mt;
-    } catch (e) {
-      try { const Sentry = require('@sentry/nextjs'); Sentry.captureException(e); } catch {}
-      // Fallback if GETDEL not supported
-      try {
-        const tx = await redis.multi();
-        const result = await tx.get(key).del(key).exec();
-        const raw = result?.[0]?.[1] as string | null;
-        if (!raw) return null;
-        const mt = JSON.parse(raw) as MagicToken;
-        return mt;
-      } catch (err) {
-        try { const Sentry = require('@sentry/nextjs'); Sentry.captureException(err); } catch {}
-        console.error('Failed to consume magic token from Redis', err);
-        return null;
-      }
     }
+  } catch (e) {
+    try { const Sentry = require('@sentry/nextjs'); Sentry.captureException(e); } catch {}
+    console.error('Failed to consume magic token from Redis, checking in-memory:', e);
+    // Fall through to in-memory check
   }
+  
+  // Fall back to in-memory storage
   const store = ensureStore();
   const mt = store.magic.get(token);
-  if (!mt) return null;
-  if (mt.used) return null;
+  if (!mt) {
+    console.debug('Magic token not found in memory:', { token });
+    return null;
+  }
+  
+  if (mt.used) {
+    console.warn('Magic token already used:', { token });
+    return null;
+  }
+  
   if (mt.expiresAt <= now()) {
+    console.warn('Magic token expired:', { token, expiresAt: mt.expiresAt, now: now() });
     store.magic.delete(token);
     return null;
   }
+  
+  // Mark as used
   mt.used = true;
   store.magic.set(token, mt);
   return mt;

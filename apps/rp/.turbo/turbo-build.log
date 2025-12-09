@@ -11,7 +11,7 @@ https://nextjs.org/telemetry
    - Environments: .env.local
 
    Creating an optimized production build ...
- ⚠ Compiled with warnings in 17.8s
+ ⚠ Compiled with warnings in 17.1s
 
 ../../node_modules/.pnpm/@opentelemetry+instrumentation@0.57.1_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/instrumentation/build/esm/platform/node/instrumentation.js
 Critical dependency: the request of a dependency is an expression
@@ -42,7 +42,7 @@ Import trace for requested module:
 ../../node_modules/.pnpm/@sentry+nextjs@8.55.0_@opentelemetry+context-async-hooks@1.30.1_@opentelemetry+api@1.9.0__@op_srax7fey3wtqbr3nkhogeve2hi/node_modules/@sentry/nextjs/build/cjs/index.server.js
 ./app/auth/logout/route.ts
 
- ✓ Compiled successfully in 25.4s
+ ✓ Compiled successfully in 24.0s
    Linting and checking validity of types ...
    Collecting page data ...
    Generating static pages (0/10) ...

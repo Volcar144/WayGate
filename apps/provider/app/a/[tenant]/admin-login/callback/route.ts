@@ -32,7 +32,13 @@ export async function GET(req: NextRequest) {
   try {
     // Consume magic token
     const mt = await consumeMagicToken(token);
-    if (!mt || mt.tenantSlug !== tenantSlug) {
+    if (!mt) {
+      console.error('Magic token not found or expired:', { token, tenantSlug });
+      return new NextResponse('Invalid or expired link', { status: 400 });
+    }
+    
+    if (mt.tenantSlug !== tenantSlug) {
+      console.error('Magic token tenant mismatch:', { expected: tenantSlug, actual: mt.tenantSlug, token });
       return new NextResponse('Invalid or expired link', { status: 400 });
     }
 
