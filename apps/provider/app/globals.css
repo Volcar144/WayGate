@@ -5,3 +5,26 @@
 body {
   scroll-behavior: smooth, auto
 }
+:root {
+  --background: #f9fafb;
+  --foreground: #111827;
+  --primary: #4f46e5;
+  --primary-foreground: #ffffff;
+  --border: #e5e7eb;
+  --card: #ffffff;
+  --card-foreground: #111827;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #111827;
+    --foreground: #f9fafb;
+    --primary: #6366f1;
+    --primary-foreground: #ffffff;
+    --border: #374151;
+    --card: #1f2937;
+    --card-foreground: #f9fafb;
+  }
+}
+
+

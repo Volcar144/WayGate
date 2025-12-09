@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireTenant } from '@/lib/tenant-repo';
+import { requireTenantAdmin } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { AuditService } from '@/services/audit';
+import type { Prisma } from '@prisma/client';
 
 export const runtime = 'nodejs';
 
@@ -10,11 +11,11 @@ export async function POST(
   { params }: { params: Promise<{ keyId: string }> }
 ) {
   try {
-    const tenant = await requireTenant();
+    const context = await requireTenantAdmin();
     const { keyId } = await params;
 
     const key = await prisma.jwkKey.findFirst({
-      where: { id: keyId, tenantId: tenant.id },
+      where: { id: keyId, tenantId: context.tenant.id },
     });
 
     if (!key) {
@@ -30,11 +31,11 @@ export async function POST(
 
     // Get current active key first
     const currentActive = await prisma.jwkKey.findFirst({
-      where: { tenantId: tenant.id, status: 'active' },
+      where: { tenantId: context.tenant.id, status: 'active' },
     });
 
     // Retire current active key and promote new key in a transaction to ensure atomicity
-    const promoted = await prisma.$transaction(async (tx) => {
+    const promoted = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       // Retire current active key if it exists
       if (currentActive) {
         await tx.jwkKey.update({
@@ -52,6 +53,7 @@ export async function POST(
 
     // Create audit event
     await AuditService.create({
+      userId: context.user.id,
       action: 'key.promoted',
       resource: 'key',
       resourceId: keyId,
@@ -61,7 +63,7 @@ export async function POST(
       },
       ip: req.headers.get('x-forwarded-for') || undefined,
       userAgent: req.headers.get('user-agent') || undefined,
-    }, tenant.slug);
+    }, context.tenant.slug);
 
     return NextResponse.json({ key: promoted });
   } catch (error) {
