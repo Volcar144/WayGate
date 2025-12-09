@@ -1,10 +1,10 @@
-import { prisma } from '@/lib/prisma';
+import { prisma, rawPrisma } from '@/lib/prisma';
 import { env } from '@/env';
 import { createCipheriv, createDecipheriv, randomBytes, createHash } from 'node:crypto';
 import { exportJWK, generateKeyPair, calculateJwkThumbprint, JWK } from 'jose';
 
-// Export the prisma instance for use in seed
-export { prisma };
+// Export the prisma instances for use in seed
+export { prisma, rawPrisma };
 
 export type KeyStatus = 'staged' | 'active' | 'retired';
 
@@ -58,7 +58,7 @@ function addDays(d: Date, days: number): Date {
 
 export async function ensureActiveKeyForTenant(tenantId: string): Promise<void> {
   // If no active key exists, generate and activate one
-  const existingActive = await (prisma as any).jwkKey.findFirst({
+  const existingActive = await (rawPrisma as any).jwkKey.findFirst({
     where: { tenantId, status: 'active' },
   });
   if (existingActive) return;
@@ -74,10 +74,10 @@ export async function rotateKeysForTenant(tenantId: string): Promise<{ kid: stri
   const na = addDays(nb, 7); // keep retired keys available 7 days
 
   // demote old active -> retired with notAfter
-  const prevActive = await (prisma as any).jwkKey.findFirst({ where: { tenantId, status: 'active' } });
+  const prevActive = await (rawPrisma as any).jwkKey.findFirst({ where: { tenantId, status: 'active' } });
 
   // create staged
-  const created = await (prisma as any).jwkKey.create({
+  const created = await (rawPrisma as any).jwkKey.create({
     data: {
       tenantId,
       kid,
@@ -90,20 +90,20 @@ export async function rotateKeysForTenant(tenantId: string): Promise<{ kid: stri
   });
 
   // promote staged to active
-  await (prisma as any).jwkKey.update({
+  await (rawPrisma as any).jwkKey.update({
     where: { id: created.id },
     data: { status: 'active' },
   });
 
   if (prevActive) {
-    await (prisma as any).jwkKey.update({
+    await (rawPrisma as any).jwkKey.update({
       where: { id: prevActive.id },
       data: { status: 'retired', notAfter: na },
     });
   }
 
   // audit
-  await (prisma as any).audit.create({
+  await (rawPrisma as any).audit.create({
     data: {
       tenantId,
       action: 'jwks.rotate',
@@ -118,7 +118,7 @@ export async function rotateKeysForTenant(tenantId: string): Promise<{ kid: stri
 
 export async function getJWKSForTenant(tenantId: string): Promise<{ keys: JWK[] }> {
   // include active keys and retired keys that are still within notAfter
-  const list = await (prisma as any).jwkKey.findMany({
+  const list = await (rawPrisma as any).jwkKey.findMany({
     where: {
       tenantId,
       OR: [
@@ -134,18 +134,18 @@ export async function getJWKSForTenant(tenantId: string): Promise<{ keys: JWK[] 
 }
 
 export async function getActivePrivateJwk(tenantId: string): Promise<JWK | null> {
-  const active = await (prisma as any).jwkKey.findFirst({ where: { tenantId, status: 'active' } });
+  const active = await (rawPrisma as any).jwkKey.findFirst({ where: { tenantId, status: 'active' } });
   if (!active) return null;
   return decryptPrivateJwk(active.privJwkEncrypted as string);
 }
 
 export async function findTenantBySlug(slug: string): Promise<{ id: string } | null> {
-  const tenant = await (prisma as any).tenant.findUnique({ where: { slug } });
+  const tenant = await (rawPrisma as any).tenant.findUnique({ where: { slug } });
   return tenant ? { id: tenant.id } : null;
 }
 
 export async function getActiveKeyForTenant(tenantId: string): Promise<{ kid: string; privateJwk: JWK; publicJwk: JWK } | null> {
-  const active = await (prisma as any).jwkKey.findFirst({
+  const active = await (rawPrisma as any).jwkKey.findFirst({
     where: { tenantId, status: 'active' },
     select: { kid: true, pubJwk: true, privJwkEncrypted: true },
   });

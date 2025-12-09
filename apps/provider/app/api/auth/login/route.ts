@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { prisma, rawPrisma } from '@/lib/prisma';
 import { verifyPassword } from '@/utils/password';
 
 export async function POST(req: NextRequest) {
@@ -29,8 +29,23 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Invalid email or password' }, { status: 401 });
     }
 
-    // TODO: Create session/auth tokens
-    return NextResponse.json({ tenantSlug: user.tenant.slug, userId: user.id }, { status: 200 });
+    // Create session and set cookie
+    const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days
+    const session = await rawPrisma.session.create({
+      data: {
+        tenantId: user.tenant.id,
+        userId: user.id,
+        expiresAt
+      }
+    });
+
+    const maxAge = 30 * 24 * 60 * 60; // seconds
+    const secureFlag = process.env.NODE_ENV === 'production' ? '; Secure' : '';
+    const cookie = `waygate_session=${encodeURIComponent(session.id)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAge}${secureFlag}`;
+
+    const res = NextResponse.json({ tenantSlug: user.tenant.slug, userId: user.id }, { status: 200 });
+    res.headers.append('Set-Cookie', cookie);
+    return res;
   } catch (error) {
     console.error('Login error:', error);
     return NextResponse.json({ error: error instanceof Error ? error.message : 'Login failed' }, { status: 500 });
