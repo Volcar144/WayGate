@@ -6,7 +6,7 @@
    - Environments: .env.local
 
    Creating an optimized production build ...
- ⚠ Compiled with warnings in 14.9s
+ ⚠ Compiled with warnings in 22.3s
 
 ../../node_modules/.pnpm/@opentelemetry+instrumentation@0.57.1_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/instrumentation/build/esm/platform/node/instrumentation.js
 Critical dependency: the request of a dependency is an expression
@@ -21,8 +21,7 @@ Import trace for requested module:
 ../../node_modules/.pnpm/@sentry+node@8.55.0/node_modules/@sentry/node/build/cjs/integrations/http/index.js
 ../../node_modules/.pnpm/@sentry+node@8.55.0/node_modules/@sentry/node/build/cjs/index.js
 ../../node_modules/.pnpm/@sentry+nextjs@8.55.0_@opentelemetry+context-async-hooks@1.30.1_@opentelemetry+api@1.9.0__@op_srax7fey3wtqbr3nkhogeve2hi/node_modules/@sentry/nextjs/build/cjs/index.server.js
-./src/lib/prisma.ts
-./app/a/[tenant]/admin/api/apps/route.ts
+./app/a/[tenant]/logout/route.ts
 
 ../../node_modules/.pnpm/require-in-the-middle@7.5.2/node_modules/require-in-the-middle/index.js
 Critical dependency: require function is used in a way in which dependencies cannot be statically extracted
@@ -36,10 +35,9 @@ Import trace for requested module:
 ../../node_modules/.pnpm/@sentry+node@8.55.0/node_modules/@sentry/node/build/cjs/integrations/node-fetch.js
 ../../node_modules/.pnpm/@sentry+node@8.55.0/node_modules/@sentry/node/build/cjs/index.js
 ../../node_modules/.pnpm/@sentry+nextjs@8.55.0_@opentelemetry+context-async-hooks@1.30.1_@opentelemetry+api@1.9.0__@op_srax7fey3wtqbr3nkhogeve2hi/node_modules/@sentry/nextjs/build/cjs/index.server.js
-./src/lib/prisma.ts
-./app/a/[tenant]/admin/api/apps/route.ts
+./app/a/[tenant]/logout/route.ts
 
- ✓ Compiled successfully in 22.6s
+ ✓ Compiled successfully in 35.3s
    Skipping linting
    Checking validity of types ...
    Collecting page data ...

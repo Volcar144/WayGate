@@ -205,10 +205,14 @@ export function tenantIsolationMiddleware() {
     
     const currentTenantSlug = getCurrentTenantSlug();
     
-    // If no tenant context, allow only in development/specific cases
+    // If no tenant context, allow only for specific cases (e.g., tenant creation)
     if (!currentTenantSlug) {
-      // In production, this should be an error, but for now we'll allow it
-      // to not break existing functionality during migration
+      // Allow Tenant model operations without tenant context (for signup)
+      if (model === 'Tenant') {
+        return next(params);
+      }
+      
+      // In production, other models require tenant context
       if (process.env.NODE_ENV === 'production') {
         throw new Error(`Tenant context required for ${model}.${action} in production`);
       }
