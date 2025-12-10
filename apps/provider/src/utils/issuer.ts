@@ -12,5 +12,5 @@ export async function getIssuerURL(): Promise<string> {
   if (!host) throw new Error('Cannot derive issuer: missing Host header');
   if (!tenant) throw new Error('Cannot derive issuer: missing tenant context');
 
-  return `${proto}://${host}/a/${tenant}`;
+  return `${proto}://waygate.vercel.app/a/${tenant}`;
 }
