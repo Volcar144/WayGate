@@ -4,13 +4,16 @@ import { getTenant } from '@/lib/tenant';
 
 export async function getIssuerURL(): Promise<string> {
   const tenant = getTenant();
+  const override = true;
   // Precedence: explicit ISSUER_URL env overrides dynamic detection
-  if (env.ISSUER_URL) {
-    if (env.ISSUER_URL.includes('{tenant}')) {
-      if (!tenant) throw new Error('Cannot derive issuer from ISSUER_URL: missing tenant context');
-      return env.ISSUER_URL.replace('{tenant}', tenant);
+  if (!override){
+    if (env.ISSUER_URL) {
+      if (env.ISSUER_URL.includes('{tenant}')) {
+        if (!tenant) throw new Error('Cannot derive issuer from ISSUER_URL: missing tenant context');
+        return .replace('{tenant}', tenant);
+      }
+      return env.ISSUER_URL;
     }
-    return env.ISSUER_URL;
   }
 
   const h = await headers();
