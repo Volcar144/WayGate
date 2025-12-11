@@ -18,7 +18,7 @@ Prerequisites
 - A local Postgres (the defaults below assume postgres:postgres@localhost:5432)
 
 1) Configure and run the Provider
-- Copy the example env to apps/provider/.env and adjust as needed
+- Copy the example env to apps/provider/.env and adjust as neededg
   cp .env.example apps/provider/.env
 - Ensure SUPABASE_DATABASE_URL is set in apps/provider/.env
 - From apps/provider, generate Prisma client, run migrations, and seed a tenant + client
