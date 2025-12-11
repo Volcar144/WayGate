@@ -13,14 +13,7 @@ import type {
   FlowStatus,
 } from '@/types/flows';
 import { z } from 'zod';
-import type {
-  Prisma,
-  FlowNodeType as PrismaFlowNodeType,
-  FlowNode as PrismaFlowNode,
-  UiPrompt as PrismaUiPrompt,
-  FlowRun as PrismaFlowRun,
-  FlowEvent as PrismaFlowEvent,
-} from '@prisma/client';
+import type { Prisma } from '@prisma/client';
 
 const PromptSchemaValidator = z.object({
   fields: z
@@ -62,12 +55,16 @@ const FlowInputSchema = z.object({
   trigger: z.enum(['signin', 'signup', 'pre_consent', 'post_consent', 'custom']),
 });
 
-type FlowIncludeNodes = Prisma.FlowGetPayload<{
-  include: {
-    nodes: {
-      include: { uiPrompt: true };
-      orderBy: { order: 'asc' };
-    };
+type FlowWithNodes = Prisma.FlowGetPayload<{
+  select: {
+    id: true;
+    name: true;
+    status: true;
+    trigger: true;
+    version: true;
+    nodes: true;
+    createdAt: true;
+    updatedAt: true;
   };
 }>;
 
@@ -76,11 +73,15 @@ export async function getFlowDashboard(tenantId: string): Promise<FlowDashboardR
     prisma.flow.findMany({
       where: { tenantId },
       orderBy: { updatedAt: 'desc' },
-      include: {
-        nodes: {
-          include: { uiPrompt: true },
-          orderBy: { order: 'asc' },
-        },
+      select: {
+        id: true,
+        name: true,
+        status: true,
+        trigger: true,
+        version: true,
+        nodes: true,
+        createdAt: true,
+        updatedAt: true,
       },
     }),
     prisma.uiPrompt.findMany({ where: { tenantId }, orderBy: { updatedAt: 'desc' } }),
@@ -88,7 +89,15 @@ export async function getFlowDashboard(tenantId: string): Promise<FlowDashboardR
       where: { tenantId },
       orderBy: { startedAt: 'desc' },
       take: 15,
-      include: {
+      select: {
+        id: true,
+        status: true,
+        flowId: true,
+        userId: true,
+        requestRid: true,
+        lastError: true,
+        startedAt: true,
+        finishedAt: true,
         flow: {
           select: { id: true, name: true, trigger: true },
         },
@@ -98,7 +107,7 @@ export async function getFlowDashboard(tenantId: string): Promise<FlowDashboardR
         events: {
           orderBy: { timestamp: 'asc' },
           take: 10,
-          include: { node: { select: { id: true, type: true, order: true } } },
+          select: { id: true, type: true, timestamp: true, metadata: true },
         },
       },
     }),
@@ -130,11 +139,15 @@ export async function createFlow(tenantId: string, input: { name: string; trigge
       trigger: parsed.trigger,
       status: 'disabled',
     },
-    include: {
-      nodes: {
-        include: { uiPrompt: true },
-        orderBy: { order: 'asc' },
-      },
+    select: {
+      id: true,
+      name: true,
+      status: true,
+      trigger: true,
+      version: true,
+      nodes: true,
+      createdAt: true,
+      updatedAt: true,
     },
   });
   return mapFlow(flow);
@@ -154,11 +167,15 @@ export async function updateFlow(
       ...(updates.trigger ? { trigger: updates.trigger } : {}),
       version: { increment: 1 },
     },
-    include: {
-      nodes: {
-        include: { uiPrompt: true },
-        orderBy: { order: 'asc' },
-      },
+    select: {
+      id: true,
+      name: true,
+      status: true,
+      trigger: true,
+      version: true,
+      nodes: true,
+      createdAt: true,
+      updatedAt: true,
     },
   });
   return mapFlow(flow);
@@ -175,22 +192,29 @@ export async function createFlowNode(
   input: { type: FlowNodeType; config?: Record<string, any>; uiPromptId?: string | null },
 ): Promise<FlowDto> {
   const flow = await ensureFlowOwnership(tenantId, flowId);
-  const maxOrder = await prisma.flowNode.aggregate({
-    where: { flowId },
-    _max: { order: true },
-  });
-  await prisma.flowNode.create({
-    data: {
-      tenantId,
-      flowId,
-      type: input.type as unknown as PrismaFlowNodeType,
-      config: input.config ?? {},
-      order: (maxOrder._max.order ?? 0) + 1,
-      uiPromptId: input.uiPromptId ?? null,
+  const nodes = (Array.isArray(flow.nodes) ? flow.nodes : []) as any[];
+  const newNode = {
+    id: `node_${Date.now()}`,
+    type: input.type,
+    config: input.config ?? {},
+    order: (nodes.length ? Math.max(...nodes.map((n) => n.order ?? 0)) : 0) + 1,
+    uiPromptId: input.uiPromptId ?? null,
+  };
+  nodes.push(newNode);
+  const updated = await prisma.flow.update({
+    where: { id: flowId },
+    data: { nodes: JSON.parse(JSON.stringify(nodes)), version: { increment: 1 } },
+    select: {
+      id: true,
+      name: true,
+      status: true,
+      trigger: true,
+      version: true,
+      nodes: true,
+      createdAt: true,
+      updatedAt: true,
     },
   });
-  await prisma.flow.update({ where: { id: flowId }, data: { version: { increment: 1 } } });
-  const updated = await fetchFlowWithNodes(flowId);
   return mapFlow(updated);
 }
 
@@ -200,25 +224,46 @@ export async function updateFlowNode(
   nodeId: string,
   updates: Partial<{ order: number; config: Record<string, any>; uiPromptId: string | null }>,
 ): Promise<FlowDto> {
-  await ensureFlowOwnership(tenantId, flowId);
-  await prisma.flowNode.update({
-    where: { id: nodeId, tenantId, flowId },
-    data: {
-      ...(typeof updates.order === 'number' ? { order: updates.order } : {}),
-      ...(updates.config ? { config: updates.config } : {}),
-      uiPromptId: updates.uiPromptId === undefined ? undefined : updates.uiPromptId,
+  const flow = await ensureFlowOwnership(tenantId, flowId);
+  const nodes = (Array.isArray(flow.nodes) ? flow.nodes : []) as any[];
+  const idx = nodes.findIndex((n) => n.id === nodeId);
+  if (idx === -1) throw new Error('Node not found');
+  nodes[idx] = { ...nodes[idx], ...updates };
+  const updated = await prisma.flow.update({
+    where: { id: flowId },
+    data: { nodes: JSON.parse(JSON.stringify(nodes)), version: { increment: 1 } },
+    select: {
+      id: true,
+      name: true,
+      status: true,
+      trigger: true,
+      version: true,
+      nodes: true,
+      createdAt: true,
+      updatedAt: true,
     },
   });
-  await prisma.flow.update({ where: { id: flowId }, data: { version: { increment: 1 } } });
-  const updated = await fetchFlowWithNodes(flowId);
   return mapFlow(updated);
 }
 
 export async function deleteFlowNode(tenantId: string, flowId: string, nodeId: string): Promise<FlowDto> {
-  await ensureFlowOwnership(tenantId, flowId);
-  await prisma.flowNode.delete({ where: { id: nodeId, tenantId } });
-  await prisma.flow.update({ where: { id: flowId }, data: { version: { increment: 1 } } });
-  const updated = await fetchFlowWithNodes(flowId);
+  const flow = await ensureFlowOwnership(tenantId, flowId);
+  const nodes = (Array.isArray(flow.nodes) ? flow.nodes : []) as any[];
+  const filtered = nodes.filter((n) => n.id !== nodeId);
+  const updated = await prisma.flow.update({
+    where: { id: flowId },
+    data: { nodes: JSON.parse(JSON.stringify(filtered)), version: { increment: 1 } },
+    select: {
+      id: true,
+      name: true,
+      status: true,
+      trigger: true,
+      version: true,
+      nodes: true,
+      createdAt: true,
+      updatedAt: true,
+    },
+  });
   return mapFlow(updated);
 }
 
@@ -261,14 +306,18 @@ export async function deletePrompt(tenantId: string, promptId: string): Promise<
   await prisma.uiPrompt.delete({ where: { id: promptId, tenantId } });
 }
 
-async function ensureFlowOwnership(tenantId: string, flowId: string): Promise<FlowIncludeNodes> {
+async function ensureFlowOwnership(tenantId: string, flowId: string): Promise<FlowWithNodes> {
   const flow = await prisma.flow.findFirst({
     where: { id: flowId, tenantId },
-    include: {
-      nodes: {
-        include: { uiPrompt: true },
-        orderBy: { order: 'asc' },
-      },
+    select: {
+      id: true,
+      name: true,
+      status: true,
+      trigger: true,
+      version: true,
+      nodes: true,
+      createdAt: true,
+      updatedAt: true,
     },
   });
   if (!flow) {
@@ -277,14 +326,18 @@ async function ensureFlowOwnership(tenantId: string, flowId: string): Promise<Fl
   return flow;
 }
 
-async function fetchFlowWithNodes(flowId: string): Promise<FlowIncludeNodes> {
+async function fetchFlowWithNodes(flowId: string): Promise<FlowWithNodes> {
   const flow = await prisma.flow.findUnique({
     where: { id: flowId },
-    include: {
-      nodes: {
-        include: { uiPrompt: true },
-        orderBy: { order: 'asc' },
-      },
+    select: {
+      id: true,
+      name: true,
+      status: true,
+      trigger: true,
+      version: true,
+      nodes: true,
+      createdAt: true,
+      updatedAt: true,
     },
   });
   if (!flow) {
@@ -293,35 +346,34 @@ async function fetchFlowWithNodes(flowId: string): Promise<FlowIncludeNodes> {
   return flow;
 }
 
-function mapFlow(flow: FlowIncludeNodes): FlowDto {
+function mapFlow(flow: FlowWithNodes): FlowDto {
   return {
     id: flow.id,
     name: flow.name,
-    trigger: flow.trigger as FlowTrigger,
-    status: flow.status as FlowStatus,
+    trigger: flow.trigger,
+    status: flow.status,
     version: flow.version,
     createdAt: flow.createdAt.toISOString(),
     updatedAt: flow.updatedAt.toISOString(),
-    nodes: flow.nodes?.map(mapNode) ?? [],
+    nodes: (Array.isArray(flow.nodes) ? flow.nodes : []).map((n) => {
+      const node = n as any;
+      return {
+        id: node.id,
+        type: node.type as FlowNodeType,
+        order: node.order,
+        config: node.config ?? {},
+        nextNodeId: node.nextNodeId,
+        failureNodeId: node.failureNodeId,
+        uiPromptId: node.uiPromptId,
+        uiPromptTitle: null,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+    }),
   };
 }
 
-function mapNode(node: PrismaFlowNode & { uiPrompt: PrismaUiPrompt | null }): FlowNodeDto {
-  return {
-    id: node.id,
-    type: node.type as FlowNodeType,
-    order: node.order,
-    config: (node.config as Record<string, any>) ?? {},
-    nextNodeId: node.nextNodeId,
-    failureNodeId: node.failureNodeId,
-    uiPromptId: node.uiPromptId,
-    uiPromptTitle: node.uiPrompt?.title ?? null,
-    createdAt: node.createdAt.toISOString(),
-    updatedAt: node.updatedAt.toISOString(),
-  };
-}
-
-function mapPrompt(prompt: PrismaUiPrompt): UiPromptDto {
+function mapPrompt(prompt: any): UiPromptDto {
   return {
     id: prompt.id,
     title: prompt.title,
@@ -333,16 +385,12 @@ function mapPrompt(prompt: PrismaUiPrompt): UiPromptDto {
   };
 }
 
-function mapRun(run: PrismaFlowRun & {
-  flow: { id: string; name: string; trigger: FlowTrigger };
-  user: { id: string; email: string; name: string | null } | null;
-  events: (PrismaFlowEvent & { node: { id: string; type: string | null } | null })[];
-}): FlowRunDto {
+function mapRun(run: any): FlowRunDto {
   return {
     id: run.id,
     flowId: run.flowId,
-    flowName: run.flow.name,
-    trigger: run.flow.trigger as FlowTrigger,
+    flowName: run.flow?.name || 'Unknown',
+    trigger: run.flow?.trigger as FlowTrigger,
     status: run.status as FlowRunStatus,
     startedAt: run.startedAt.toISOString(),
     finishedAt: run.finishedAt ? run.finishedAt.toISOString() : null,
@@ -354,10 +402,10 @@ function mapRun(run: PrismaFlowRun & {
           name: run.user.name,
         }
       : null,
-    events: run.events.map((event) => ({
+    events: run.events.map((event: any) => ({
       id: event.id,
       nodeId: event.nodeId,
-      nodeType: (event.node?.type as FlowNodeType) || undefined,
+      nodeType: (event.nodeType as FlowNodeType) || undefined,
       type: event.type as FlowEventType,
       timestamp: event.timestamp.toISOString(),
       metadata: (event.metadata as Record<string, any>) ?? null,

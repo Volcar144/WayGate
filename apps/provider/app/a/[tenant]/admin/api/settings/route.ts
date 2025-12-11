@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireTenant } from '@/lib/tenant-repo';
 import { tenantSettingsRepo } from '@/lib/tenant-repo';
 import { AuditService } from '@/services/audit';
+import { getAdminSession } from '@/lib/auth';
+import { RbacService, PERMISSIONS } from '@/lib/rbac';
 import { env } from '@/env';
 
 export const runtime = 'nodejs';
@@ -24,6 +26,20 @@ async function checkRedisStatus(): Promise<boolean> {
 export async function GET(req: NextRequest) {
   try {
     const tenant = await requireTenant();
+    const session = await getAdminSession();
+    if (!session) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    
+    // Check read permission
+    const hasPermission = await RbacService.hasPermission(
+      tenant.id,
+      session.userId,
+      PERMISSIONS.SETTINGS_READ
+    );
+    if (!hasPermission) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
 
     const settings = await tenantSettingsRepo.get(tenant.id);
     const smtpStatus = await checkSmtpStatus();
@@ -47,6 +63,21 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const tenant = await requireTenant();
+    const session = await getAdminSession();
+    if (!session) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    
+    // Check update permission
+    const hasPermission = await RbacService.hasPermission(
+      tenant.id,
+      session.userId,
+      PERMISSIONS.SETTINGS_UPDATE
+    );
+    if (!hasPermission) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+    
     const body = await req.json();
 
     const updated = await tenantSettingsRepo.upsert(tenant.id, {

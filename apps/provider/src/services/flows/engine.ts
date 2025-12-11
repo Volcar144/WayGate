@@ -128,31 +128,48 @@ const PromptSchemaValidator = z.object({
   cancelLabel: z.string().optional(),
 });
 
-type FlowNodeWithPrompt = Prisma.FlowNodeGetPayload<{
-  include: { uiPrompt: true };
-}>;
-
 type FlowWithNodes = Prisma.FlowGetPayload<{
-  include: {
-    nodes: {
-      include: { uiPrompt: true };
-      orderBy: { order: 'asc' };
-    };
+  select: {
+    id: true;
+    name: true;
+    status: true;
+    trigger: true;
+    version: true;
+    nodes: true;
+    createdAt: true;
+    updatedAt: true;
   };
 }>;
 
 type FlowRunRecord = Prisma.FlowRunGetPayload<{
-  include: {
+  select: {
+    id: true;
+    status: true;
+    flowId: true;
+    userId: true;
+    requestRid: true;
+    lastError: true;
+    startedAt: true;
+    finishedAt: true;
+    currentNodeIndex: true;
+    context: true;
+    tenantId: true;
     flow: {
-      include: {
-        nodes: {
-          include: { uiPrompt: true };
-          orderBy: { order: 'asc' };
-        };
+      select: {
+        id: true;
+        name: true;
+        status: true;
+        trigger: true;
+        version: true;
+        nodes: true;
+        createdAt: true;
+        updatedAt: true;
       };
     };
   };
 }>;
+
+type FlowNodeWithPrompt = any;
 
 type ResumeTokenState = {
   runId: string;
@@ -282,40 +299,46 @@ async function loadActiveFlow(tenantId: string, trigger: FlowTrigger): Promise<F
   return prisma.flow.findFirst({
     where: { tenantId, trigger, status: 'enabled' },
     orderBy: [{ version: 'desc' }, { updatedAt: 'desc' }],
-    include: {
-      nodes: {
-        include: { uiPrompt: true },
-        orderBy: { order: 'asc' },
-      },
+    select: {
+      id: true,
+      name: true,
+      status: true,
+      trigger: true,
+      version: true,
+      nodes: true,
+      createdAt: true,
+      updatedAt: true,
     },
   });
 }
 
-function selectEntryNode(flow: FlowWithNodes): FlowNodeWithPrompt | null {
-  if (!flow.nodes || flow.nodes.length === 0) return null;
-  const begin = flow.nodes.find((node) => node.type === 'begin');
-  return begin || flow.nodes[0];
+function selectEntryNode(flow: FlowWithNodes): any | null {
+  const nodes = (Array.isArray(flow.nodes) ? flow.nodes : []) as any[];
+  if (nodes.length === 0) return null;
+  const begin = nodes.find((node) => node.type === 'begin');
+  return begin || nodes[0] || null;
 }
 
-function nodesMap(flow: FlowWithNodes): Map<string, FlowNodeWithPrompt> {
-  const map = new Map<string, FlowNodeWithPrompt>();
-  for (const node of flow.nodes) map.set(node.id, node);
+function nodesMap(flow: FlowWithNodes): Map<string, any> {
+  const map = new Map<string, any>();
+  const nodes = (Array.isArray(flow.nodes) ? flow.nodes : []) as any[];
+  for (const node of nodes) map.set(node.id, node);
   return map;
 }
 
 function nextNodeResolver(
-  current: FlowNodeWithPrompt,
+  current: any,
   flow: FlowWithNodes,
   explicit?: string | null,
-): FlowNodeWithPrompt | null {
+): any | null {
   const map = nodesMap(flow);
   if (explicit) {
     return map.get(explicit) || null;
   }
-  const ordered = flow.nodes || [];
-  const idx = ordered.findIndex((n) => n.id === current.id);
+  const nodes = (Array.isArray(flow.nodes) ? flow.nodes : []) as any[];
+  const idx = nodes.findIndex((n) => n.id === current.id);
   if (idx === -1) return null;
-  return ordered[idx + 1] || null;
+  return nodes[idx + 1] || null;
 }
 
 async function recordEvent(
@@ -330,7 +353,6 @@ async function recordEvent(
       data: {
         tenantId,
         flowRunId: runId,
-        nodeId,
         type,
         metadata: metadata ? (metadata as unknown as Prisma.InputJsonValue) : undefined,
       },
@@ -502,7 +524,8 @@ async function writeUserMetadata(tenantId: string, userId: string, cfg: Metadata
 
 export async function startFlowRun(options: FlowStartOptions): Promise<FlowEngineResult> {
   const flow = await loadActiveFlow(options.tenantId, options.trigger);
-  if (!flow || flow.nodes.length === 0) {
+  const nodes = (Array.isArray(flow?.nodes) ? flow.nodes : []) as any[];
+  if (!flow || nodes.length === 0) {
     return { type: 'skipped' };
   }
   const context = buildInitialContext(options);
@@ -523,11 +546,15 @@ export async function startFlowRun(options: FlowStartOptions): Promise<FlowEngin
   }
   const include = {
     flow: {
-      include: {
-        nodes: {
-          include: { uiPrompt: true },
-          orderBy: { order: 'asc' },
-        },
+      select: {
+        id: true,
+        name: true,
+        status: true,
+        trigger: true,
+        version: true,
+        nodes: true,
+        createdAt: true,
+        updatedAt: true,
       },
     },
   } as const;
@@ -540,15 +567,64 @@ export async function startFlowRun(options: FlowStartOptions): Promise<FlowEngin
         userId: options.user.id,
         requestRid: options.pending.rid,
         trigger: options.trigger,
+        status: 'running',
         context: sanitizeContext(context),
       },
-      include,
+      select: {
+        id: true,
+        status: true,
+        flowId: true,
+        userId: true,
+        requestRid: true,
+        lastError: true,
+        startedAt: true,
+        finishedAt: true,
+        currentNodeIndex: true,
+        context: true,
+        tenantId: true,
+        flow: {
+          select: {
+            id: true,
+            name: true,
+            status: true,
+            trigger: true,
+            version: true,
+            nodes: true,
+            createdAt: true,
+            updatedAt: true,
+          },
+        },
+      },
     });
   } catch (err: any) {
     if (err?.code === 'P2002') {
       run = await prisma.flowRun.findFirst({
         where: { tenantId: options.tenantId, requestRid: options.pending.rid, trigger: options.trigger },
-        include,
+        select: {
+          id: true,
+          status: true,
+          flowId: true,
+          userId: true,
+          requestRid: true,
+          lastError: true,
+          startedAt: true,
+          finishedAt: true,
+          currentNodeIndex: true,
+          context: true,
+          tenantId: true,
+          flow: {
+            select: {
+              id: true,
+              name: true,
+              status: true,
+              trigger: true,
+              version: true,
+              nodes: true,
+              createdAt: true,
+              updatedAt: true,
+            },
+          },
+        },
       });
     } else {
       throw err;
@@ -575,13 +651,28 @@ export async function resumeFlow(options: FlowResumeOptions): Promise<FlowEngine
   }
   const run = await prisma.flowRun.findUnique({
     where: { id: options.runId, tenantId: options.tenantId },
-    include: {
+    select: {
+      id: true,
+      status: true,
+      flowId: true,
+      userId: true,
+      requestRid: true,
+      lastError: true,
+      startedAt: true,
+      finishedAt: true,
+      currentNodeIndex: true,
+      context: true,
+      tenantId: true,
       flow: {
-        include: {
-          nodes: {
-            include: { uiPrompt: true },
-            orderBy: { order: 'asc' },
-          },
+        select: {
+          id: true,
+          name: true,
+          status: true,
+          trigger: true,
+          version: true,
+          nodes: true,
+          createdAt: true,
+          updatedAt: true,
         },
       },
     },
@@ -611,7 +702,7 @@ interface RunLoopArgs {
 
 async function runLoop(args: RunLoopArgs): Promise<FlowEngineResult> {
   const flow = args.run.flow;
-  if (!flow || !flow.nodes.length) {
+  if (!flow || !Array.isArray(flow.nodes) || flow.nodes.length === 0) {
     return { type: 'success', runId: args.run.id, context: args.context };
   }
 
@@ -619,7 +710,7 @@ async function runLoop(args: RunLoopArgs): Promise<FlowEngineResult> {
   const map = nodesMap(flow);
   let current: FlowNodeWithPrompt | null;
   if (args.resumeSubmission) {
-    const candidateId = args.resumeNodeId || args.run.currentNodeId || null;
+    const candidateId = args.resumeNodeId || null;
     current = candidateId ? map.get(candidateId) || selectEntryNode(flow) : selectEntryNode(flow);
   } else {
     current = selectEntryNode(flow);
@@ -868,7 +959,7 @@ async function promptResult(
     where: { id: run.id },
     data: {
       status: 'interrupted',
-      currentNodeId: node.id,
+      currentNodeIndex: node.order,
       context: sanitizeContext(context),
     },
   });
@@ -877,13 +968,13 @@ async function promptResult(
   return { type: 'prompt', runId: run.id, prompt: descriptor, resumeToken };
 }
 
-async function updateRunContext(runId: string, context: FlowContext, currentNodeId?: string | null) {
+async function updateRunContext(runId: string, context: FlowContext, currentNodeIndex?: number | null) {
   try {
     await prisma.flowRun.update({
       where: { id: runId },
       data: {
         context: sanitizeContext(context),
-        currentNodeId: currentNodeId ?? null,
+        currentNodeIndex: currentNodeIndex ?? null,
       },
     });
   } catch (err) {
@@ -899,7 +990,7 @@ async function markRunSuccess(runId: string, context: FlowContext) {
         status: 'success',
         finishedAt: new Date(),
         context: sanitizeContext(context),
-        currentNodeId: null,
+        currentNodeIndex: null,
         lastError: null,
       },
     });

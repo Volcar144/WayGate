@@ -187,10 +187,12 @@ export async function GET(req: NextRequest) {
   <form id=\"magic-form\" class="stack">
     <label for="email">Email</label>
     <input id="email" type=\"email\" name=\"email\" placeholder=\"you@example.com\" required aria-label="Email address" />
-    <input type=\"hidden\" name=\"rid\" value=\"${pending.rid}\" />
+    <label for="password">Password</label>
+    <input id="password" type=\"password\" name=\"password\" placeholder=\"Your password\" aria-label=\"Password (optional; provide to verify before magic link)\" />
+    <input type="hidden" name="rid" value="${pending.rid}" />
     <div class="row">
-      <button type=\"submit\" id="send-link">Send link</button>
-      <button type=\"button\" id=\"use-passkey\" class="secondary" disabled aria-disabled="true" title="Passkey support coming soon">Use passkey</button>
+      <button type="submit" id="send-link">Send link</button>
+      <button type="button" id=\"use-passkey\" class="secondary" disabled aria-disabled=\"true\" title=\"Passkey support coming soon\">Use passkey</button>
     </div>
   </form>
   <p id=\"magic-status\" aria-live="polite"></p>
@@ -226,21 +228,43 @@ export async function GET(req: NextRequest) {
   const sendBtn = document.getElementById('send-link');
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
-    statusEl.textContent = 'Sending...';
+    statusEl.textContent = 'Processing...';
     sendBtn.setAttribute('disabled','true');
     try {
       const fd = new FormData(form);
-      const res = await fetch('../magic/request', { method: 'POST', body: fd });
-      const data = await res.json().catch(()=>({ ok:false }));
-      if (res.ok && data.ok) {
-        statusEl.textContent = data.message || 'Magic link sent. Check your email.';
-        if (data.debug_link) {
-          const a = document.createElement('a');
-          a.href = data.debug_link; a.textContent = 'Open magic link (debug)'; a.target = '_blank';
-          statusEl.appendChild(document.createTextNode(' ')); statusEl.appendChild(a);
+      const password = String(fd.get('password') || '');
+      if (password) {
+        // Password-first flow: verify password, then issue magic link server-side
+        const res = await fetch('./password', { method: 'POST', body: fd });
+        const data = await res.json().catch(()=>({ ok:false }));
+        if (res.ok && data.ok) {
+          statusEl.textContent = data.message || 'Password verified. Magic link sent.';
+          if (data.debug_link) {
+            const a = document.createElement('a');
+            a.href = data.debug_link; a.textContent = 'Open magic link (debug)'; a.target = '_blank';
+            statusEl.appendChild(document.createTextNode(' ')); statusEl.appendChild(a);
+          }
+        } else if (data && data.error === 'not_registered') {
+          statusEl.innerHTML = 'Email not registered for this tenant. <a href="/a/${escTenant}/register?email='+encodeURIComponent(String(fd.get('email')||''))+'">Register</a>';
+        } else {
+          statusEl.textContent = data.error || 'Failed to verify password.';
         }
       } else {
-        statusEl.textContent = data.error || 'Failed to send magic link.';
+        // Magic-only flow: server will indicate if registration is required
+        const res = await fetch('../magic/request', { method: 'POST', body: fd });
+        const data = await res.json().catch(()=>({ ok:false }));
+        if (res.ok && data.ok) {
+          statusEl.textContent = data.message || 'Magic link sent. Check your email.';
+          if (data.debug_link) {
+            const a = document.createElement('a');
+            a.href = data.debug_link; a.textContent = 'Open magic link (debug)'; a.target = '_blank';
+            statusEl.appendChild(document.createTextNode(' ')); statusEl.appendChild(a);
+          }
+        } else if (data && data.error === 'not_registered') {
+          statusEl.innerHTML = 'Email not registered for this tenant. <a href="/a/${escTenant}/register?email='+encodeURIComponent(String(fd.get('email')||''))+'">Register</a>';
+        } else {
+          statusEl.textContent = data.error || 'Failed to send magic link.';
+        }
       }
     } finally {
       sendBtn.removeAttribute('disabled');

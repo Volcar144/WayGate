@@ -186,31 +186,8 @@ export async function GET(req: NextRequest) {
 
   let user = await (prisma as any).user.findUnique({ where: { tenantId_email: { tenantId: tenant.id, email: mt.email } } });
   if (!user) {
-    user = await (prisma as any).user.create({ data: { tenantId: tenant.id, email: mt.email, name: null } });
-    
-    // Auto-assign admin role to first user in tenant
-    try {
-      const userCount = await (prisma as any).user.count({ where: { tenantId: tenant.id } });
-      if (userCount === 1) {
-        // This is the first user, find admin role and assign it
-        const adminRole = await (prisma as any).tenantRole.findFirst({
-          where: { tenantId: tenant.id, name: 'Tenant Admin' }
-        });
-        if (adminRole) {
-          await (prisma as any).userRole.create({
-            data: {
-              tenantId: tenant.id,
-              userId: user.id,
-              roleId: adminRole.id,
-              assignedBy: user.id
-            }
-          });
-        }
-      }
-    } catch (err) {
-      // Log but don't fail - admin assignment is not critical for login flow
-      console.error('Failed to auto-assign admin role to first user', err);
-    }
+    // Do NOT auto-create users for magic links — prompt to register instead.
+    return html(`<h1>Account not found</h1><p>No account exists for <strong>${escapeHtml(mt.email)}</strong> on this tenant. <a href="/a/${tenantSlug}/register?email=${encodeURIComponent(mt.email)}">Register</a> to continue.</p>`, 400);
   }
 
   await setPendingUser(pending.rid, user.id);

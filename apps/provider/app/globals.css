@@ -1,9 +1,7 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
 
 body {
-  scroll-behavior: smooth, auto
+  scroll-behavior: smooth;
 }
 :root {
   --background: #f9fafb;

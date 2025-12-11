@@ -6,7 +6,7 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = env("SUPABASE_DATABASE_URL")
+  url      = env("DIRECT_URL")
 }
 
 model Tenant {
@@ -33,7 +33,6 @@ model Tenant {
   userRoles           UserRole[]
   flows               Flow[]
   flowRuns            FlowRun[]
-  flowNodes           FlowNode[]
   flowEvents          FlowEvent[]
   uiPrompts           UiPrompt[]
   userMetadata        UserMetadata[]
@@ -367,42 +366,15 @@ model Flow {
   name      String
   trigger   FlowTrigger
   status    FlowStatus  @default(disabled)
+  nodes     Json        @default("[]")  // Array of FlowNode objects stored as JSON
   version   Int         @default(1)
   createdAt DateTime    @default(now())
   updatedAt DateTime    @updatedAt
 
-  tenant  Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  nodes   FlowNode[]
+  tenant  Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   runs    FlowRun[]
 
   @@index([tenantId, trigger, status])
-}
-
-model FlowNode {
-  id            String      @id @default(uuid()) @db.Uuid
-  tenantId      String      @db.Uuid
-  flowId        String      @db.Uuid
-  type          FlowNodeType
-  config        Json
-  order         Int
-  nextNodeId    String?     @db.Uuid
-  failureNodeId String?     @db.Uuid
-  uiPromptId    String?     @db.Uuid
-  createdAt     DateTime    @default(now())
-  updatedAt     DateTime    @updatedAt
-
-  tenant        Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  flow          Flow       @relation(fields: [flowId], references: [id], onDelete: Cascade)
-  nextNode      FlowNode?  @relation("FlowNodeNext", fields: [nextNodeId], references: [id])
-  nextNodeBack  FlowNode[] @relation("FlowNodeNext")
-  failureNode   FlowNode?  @relation("FlowNodeFailure", fields: [failureNodeId], references: [id])
-  failureBack   FlowNode[] @relation("FlowNodeFailure")
-  uiPrompt      UiPrompt?  @relation(fields: [uiPromptId], references: [id])
-  events        FlowEvent[]
-  currentForRuns FlowRun[] @relation("FlowRunCurrentNode")
-
-  @@index([flowId, order])
-  @@index([tenantId])
 }
 
 model FlowRun {
@@ -414,17 +386,16 @@ model FlowRun {
   trigger       FlowTrigger
   status        FlowRunStatus @default(running)
   context       Json
-  currentNodeId String?       @db.Uuid
+  currentNodeIndex Int?        // Index of current node instead of nodeId
   startedAt     DateTime      @default(now())
   finishedAt    DateTime?
   lastError     String?
   version       Int           @default(1)
 
-  tenant      Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  flow        Flow      @relation(fields: [flowId], references: [id], onDelete: Cascade)
-  user        User?     @relation(fields: [userId], references: [id])
-  currentNode FlowNode? @relation("FlowRunCurrentNode", fields: [currentNodeId], references: [id])
-  events      FlowEvent[]
+  tenant Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  flow   Flow      @relation(fields: [flowId], references: [id], onDelete: Cascade)
+  user   User?     @relation(fields: [userId], references: [id])
+  events FlowEvent[]
 
   @@index([tenantId, status])
   @@index([tenantId, flowId])
@@ -435,14 +406,13 @@ model FlowEvent {
   id        String        @id @default(uuid()) @db.Uuid
   tenantId  String        @db.Uuid
   flowRunId String        @db.Uuid
-  nodeId    String?       @db.Uuid
+  nodeIndex Int?          // Index of node instead of nodeId
   type      FlowEventType
   metadata  Json?
   timestamp DateTime      @default(now())
 
-  tenant Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  run    FlowRun  @relation(fields: [flowRunId], references: [id], onDelete: Cascade)
-  node   FlowNode? @relation(fields: [nodeId], references: [id])
+  tenant Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  run    FlowRun @relation(fields: [flowRunId], references: [id], onDelete: Cascade)
 
   @@index([flowRunId])
   @@index([tenantId, type])
@@ -458,8 +428,7 @@ model UiPrompt {
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
-  tenant Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  nodes  FlowNode[]
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@index([tenantId])
   @@unique([tenantId, title])

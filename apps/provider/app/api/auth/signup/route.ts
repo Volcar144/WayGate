@@ -3,6 +3,7 @@ import { prisma, rawPrisma } from '@/lib/prisma';
 import { DEFAULT_ROLES } from '@/lib/rbac';
 import { hashPassword } from '@/utils/password';
 import { ensureActiveKeyForTenant } from '@/services/jwks';
+import { FlowExecutionService } from '@/services/flows';
 import crypto from 'node:crypto';
 
 export async function POST(req: NextRequest) {
@@ -76,15 +77,22 @@ export async function POST(req: NextRequest) {
     const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
     const session = await rawPrisma.session.create({ data: { tenantId: tenant.id, userId: user.id, expiresAt } });
 
+    // Trigger signup flow (non-blocking)
+    FlowExecutionService.executeFlow(tenant.id, 'signup', {
+      userId: user.id,
+      email: adminEmail,
+      name: adminName,
+    }, user.id).catch(err => console.error('Flow execution error:', err));
+
     const maxAge = 30 * 24 * 60 * 60;
     const secureFlag = process.env.NODE_ENV === 'production' ? '; Secure' : '';
     const cookie = `waygate_session=${encodeURIComponent(session.id)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAge}${secureFlag}`;
 
-        const res = NextResponse.json({ tenantSlug: tenant.slug, userId: user.id }, { status: 201 });
-        res.headers.append('Set-Cookie', cookie);
-        return res;
-      } catch (error) {
-        console.error('Signup error:', error);
-        return NextResponse.json({ error: error instanceof Error ? error.message : 'Signup failed' }, { status: 500 });
-      }
-    }
+    const res = NextResponse.json({ tenantSlug: tenant.slug, userId: user.id }, { status: 201 });
+    res.headers.append('Set-Cookie', cookie);
+    return res;
+  } catch (error) {
+    console.error('Signup error:', error);
+    return NextResponse.json({ error: error instanceof Error ? error.message : 'Signup failed' }, { status: 500 });
+  }
+}
